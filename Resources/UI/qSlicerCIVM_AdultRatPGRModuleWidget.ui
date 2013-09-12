@@ -6,38 +6,183 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>525</width>
-    <height>319</height>
+    <width>646</width>
+    <height>461</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
+  <layout class="QHBoxLayout" name="horizontalLayout_2">
    <item>
-    <widget class="ctkCollapsibleButton" name="CTKCollapsibleButton" native="true">
-     <property name="text" stdset="0">
+    <widget class="ctkCollapsibleButton" name="CTKCollapsibleButton">
+     <property name="text">
       <string>Display</string>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_3">
+     <layout class="QVBoxLayout">
+      <property name="margin">
+       <number>2</number>
+      </property>
       <item>
-       <widget class="qSlicerCIVM_AdultRatPGRFooBarWidget" name="FooBar" native="true"/>
+       <widget class="ctkSettingsPanel" name="SettingsPanel">
+        <layout class="QVBoxLayout" name="verticalLayout_4">
+         <property name="margin">
+          <number>2</number>
+         </property>
+         <item>
+          <widget class="QFrame" name="frame">
+           <property name="frameShape">
+            <enum>QFrame::StyledPanel</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Raised</enum>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_2">
+            <property name="margin">
+             <number>2</number>
+            </property>
+            <item>
+             <widget class="QLabel" name="labelSliderSlice">
+              <property name="text">
+               <string>Slice Selector</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="ctkSliderWidget" name="sliderSlice">
+              <property name="maximum">
+               <double>128.000000000000000</double>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="labelSliderAngle">
+              <property name="text">
+               <string>AngleSelection</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="ctkSliderWidget" name="sliderAngle">
+              <property name="singleStep">
+               <double>0.100000000000000</double>
+              </property>
+              <property name="minimum">
+               <double>-180.000000000000000</double>
+              </property>
+              <property name="maximum">
+               <double>180.000000000000000</double>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QFrame" name="contrastSelectFrame">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Plain</enum>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout">
+            <property name="margin">
+             <number>2</number>
+            </property>
+            <item>
+             <widget class="QFrame" name="frameA">
+              <property name="frameShape">
+               <enum>QFrame::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Raised</enum>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_5">
+               <property name="margin">
+                <number>2</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="labelComboBoxA">
+                 <property name="text">
+                  <string>Sagittal Image</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="ctkComboBox" name="ComboBoxA">
+                 <item>
+                  <property name="text">
+                   <string>contrast_a</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>contrast_b</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="frameB">
+              <property name="frameShape">
+               <enum>QFrame::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Raised</enum>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_6">
+               <property name="margin">
+                <number>2</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="labelComboBoxB">
+                 <property name="text">
+                  <string>Axial Image</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="ctkComboBox" name="ComboBoxB">
+                 <item>
+                  <property name="text">
+                   <string>contrast_b</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>contrast_a</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <spacer name="verticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
       </item>
      </layout>
     </widget>
-   </item>
-   <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>0</width>
-       <height>0</height>
-      </size>
-     </property>
-    </spacer>
    </item>
   </layout>
  </widget>
@@ -55,10 +200,20 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>qSlicerCIVM_AdultRatPGRFooBarWidget</class>
+   <class>ctkComboBox</class>
+   <extends>QComboBox</extends>
+   <header>ctkComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkSettingsPanel</class>
    <extends>QWidget</extends>
-   <header>qSlicerCIVM_AdultRatPGRFooBarWidget.h</header>
+   <header>ctkSettingsPanel.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkSliderWidget</class>
+   <extends>QWidget</extends>
+   <header>ctkSliderWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
