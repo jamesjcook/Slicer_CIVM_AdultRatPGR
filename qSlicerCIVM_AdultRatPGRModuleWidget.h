@@ -62,6 +62,8 @@ public:
   QString LabelPath;          //see datapath.
   QString DataPattern;        //pattern for data file to have parts replacd wit actual contrast and timepoint information.
   QString LabelPattern;       //see datapattern
+  double Pos;           //container for position of the axial image slider
+  double Angle;         //container for position of the sagital angle slider
   //  vtkMRMLSliceNode * SlicePointer ; // smart pointer to connect our slider to to adjust both our datastes at the same time. 
   
 
@@ -84,6 +86,7 @@ public:
   void SetViewNodeProperties(QString); //Sets the view properties for a given view node string
   
   void SetSliceOffsetValue(double offset);
+  void SetSliceGeometry(double angle);
   //  void trackSliceOffsetValue(double offset);
   
  protected:

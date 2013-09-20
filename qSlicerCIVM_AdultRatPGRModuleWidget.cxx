@@ -23,6 +23,7 @@
 
 // SlicerQt includes
 #include "qSlicerApplication.h"
+
 #include "qSlicerLayoutManager.h"
 #include "qSlicerIOManager.h"
 
@@ -43,7 +44,8 @@
 #include <vtkSmartPointer.h>
 
 #include <ctkSliderWidget.h>
-
+#include <vtkTransform.h>
+#include "vtkMRMLApplicationLogic.h"
 
 //-----------------------------------------------------------------------------
 /// \ingroup Slicer_QtModules_ExtensionTemplate
@@ -94,8 +96,17 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   this->Layout=QString("PGR");
   this->GalleryName="CIVM_AdultRatAtlas";
   this->CenterVolumeOnLoad=true;
+//   double sliderPos[2];
+//   sliderPos[0]=0;
+//   sliderPos[1]=0;
+//   this->Pos=sliderPos;
+//   double sliderAngle[2];
+//   sliderAngle[0]=0;
+//   sliderAngle[1]=0;
+//   this->Angle=sliderAngle;
 //  this->SlicePointer=0;
-  
+  this->Angle=0;
+  this->Pos=0;
   //  this->LoadLabels=false;
   
   /* Load data paths */
@@ -135,6 +146,9 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   //Connect our slice slider here.
   
   connect(d->sliderSlice, SIGNAL(valueChanged(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
+  //connect(d->sliderSlice, SIGNAL(valueChanged(double)), SLOT(SetPosition(double)), Qt::QueuedConnection);
+  connect(d->sliderAngle, SIGNAL(valueChanged(double)), SLOT(SetSliceGeometry(double)), Qt::QueuedConnection);
+
 //  connect(d->sliderSlice, SIGNAL(valueIsChanging(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
   
   
@@ -605,6 +619,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
         this->PrintText("Setting override orientation");
         scNode->SetLinkedControl(1);
         sliceNode->SetOrientation(orientationOverride[snCounter].toLatin1());
+	sliceNode->SetOrientationToReformat();
         }
       else 
         {
@@ -719,6 +734,64 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setSliceLogic(vtkMRMLSliceLogic * newS
 
 
 // --------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
+  this->PrintMethod("SetSliceGeometry\n");
+  // get a reformat widget aimed at the yellow slice, read the current orientation of the yellow slice for the starting point. 
+  // read the values for offest and angle
+  // apply them to the reformat widget
+  // set viewers 1/2 of 0-3 to the reformat widget(just to be sure).
+  vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New();
+
+
+  // terribly specific to our case here, we're skipping the first image viewer.
+  //  int snCounter;
+  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
+  vtkMRMLScene* currentScene = this->mrmlScene();
+  currentScene->InitTraversal();
+  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
+  // Will probably fail if more than one layout is allowed. Oh well for now.
+  QString         sliceNodeID = NULL;
+  vtkMRMLNode             *sn = NULL;
+  vtkMRMLSliceNode *sliceNode = NULL;
+  vtkMRMLSliceLogic* MRMLSliceLogic;
+
+  //double value () const
+  //this->Pos;
+  //this->Angle;
+  for (int snCounter=1;snCounter<3;snCounter++) //SceneNodes.size()-1
+    {
+    sliceNodeID = QString("vtkMRMLSliceNode")+SceneNodes[snCounter];
+    sn          = currentScene->GetNodeByID(sliceNodeID.toStdString());
+    sliceNode   = NULL;
+    if ( sn != NULL ) 
+      { 
+      sliceNode = vtkMRMLSliceNode::SafeDownCast(sn); //SliceNode    
+      if ( sliceNode != NULL ) 
+        { 
+        // sliceNode->SetSliceOffset(this->Pos);
+        transform->SetMatrix(sliceNode->GetSliceToRAS());
+        //MRMLSliceLogic =  this->logic()->GetMRMLApplicationLogic()->GetSliceLogic(sliceNode);
+        //MRMLSliceLogic->SetSliceOffset(this->Pos);
+        // Rotate on LR given the angle with the last value reccorded
+        //this->Angle[1]-this->Angle[0]
+        transform->RotateX(this->Angle-d->sliderAngle->value()); //rotation-d->LastRotationValues[axisX]
+        //this->Angle[0]=this->Angle[1];
+        Angle=d->sliderAngle->value();
+        sliceNode->GetSliceToRAS()->DeepCopy(transform->GetMatrix());
+        sliceNode->UpdateMatrices();
+        sliceNode->SetOrientationToReformat();
+        // Update last value and apply the transform
+        // d->LastRotationValues[axisX] = rotation;
+        } //endslicenode null check
+      }// end sn null check
+    }// end for
+  
+  return;
+}
+
+// --------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
@@ -732,7 +805,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
   currentScene->InitTraversal();
   currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.
   // Will probably fail if more than one layout is allowed. Oh well for now.
-  QString        sliceNodeID  = NULL;
+  QString         sliceNodeID = NULL;
   vtkMRMLNode             *sn = NULL;
   vtkMRMLSliceNode *sliceNode = NULL;
   for (int snCounter=1;snCounter<SceneNodes.size()-1;snCounter++) 
