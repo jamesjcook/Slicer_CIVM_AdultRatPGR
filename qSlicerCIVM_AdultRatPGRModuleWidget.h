@@ -29,7 +29,7 @@ class qSlicerCIVM_AdultRatPGRModuleWidgetPrivate;
 class vtkCollection;
 class vtkMRMLNode;
 class vtkMRMLSliceNode;
-
+//class vtkImageData;
 
 
 /// \ingroup Slicer_QtModules_ExtensionTemplate
@@ -67,9 +67,12 @@ public:
   //  vtkMRMLSliceNode * SlicePointer ; // smart pointer to connect our slider to to adjust both our datastes at the same time. 
   
 
-  double GetSliceOffsetValue(vtkMRMLSliceNode *);
+  // double GetSliceOffsetValue(vtkMRMLode *);
+  //  std::vector<double> GetSliderRange(vtkImageData * );
   std::vector<double> GetSliderRange(vtkMRMLNode * );
+  std::vector<double> GetSliderRangeSlice(vtkMRMLNode * );
   void SetSliderRange(ctkSliderWidget * , std::vector<double>);
+  void ResetTransform();
 
   /*
   ///
@@ -84,7 +87,7 @@ public:
   bool NodeExists(QString);   // checks scene for existing node with given name. Used in the build scene fucntion to avoid reloading data.
   QStringList GetContrasts();    // will look up all the checkboxes in contrasts group and make a qstringlist of values
   void SetViewNodeProperties(QString); //Sets the view properties for a given view node string
-  
+  QString HistologySelectionDialog(); // runs the histology selection dialog.
   void SetSliceOffsetValue(double offset);
   void SetSliceGeometry(double angle);
   //  void trackSliceOffsetValue(double offset);

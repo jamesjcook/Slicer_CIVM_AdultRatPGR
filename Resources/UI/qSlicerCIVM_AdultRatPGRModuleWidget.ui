@@ -21,6 +21,13 @@
        <number>2</number>
       </property>
       <item>
+       <widget class="ctkPushButton" name="HistologySelector">
+        <property name="text">
+         <string>Select Histology File</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QFrame" name="SliderFrame">
         <property name="frameShape">
          <enum>QFrame::StyledPanel</enum>
@@ -35,12 +42,12 @@
          <item>
           <widget class="QLabel" name="labelSliderSlice">
            <property name="text">
-            <string>Slice Selector</string>
+            <string>Position</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="ctkSliderWidget" name="sliderSlice">
+          <widget class="ctkSliderWidget" name="SliderSlice">
            <property name="maximum">
             <double>128.000000000000000</double>
            </property>
@@ -49,12 +56,12 @@
          <item>
           <widget class="QLabel" name="labelSliderAngle">
            <property name="text">
-            <string>AngleSelection</string>
+            <string>Angle</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="ctkSliderWidget" name="sliderAngle">
+          <widget class="ctkSliderWidget" name="SliderAngle">
            <property name="singleStep">
             <double>0.100000000000000</double>
            </property>
@@ -181,6 +188,11 @@
    <class>ctkComboBox</class>
    <extends>QComboBox</extends>
    <header>ctkComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkPushButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkPushButton.h</header>
   </customwidget>
   <customwidget>
    <class>ctkSettingsPanel</class>

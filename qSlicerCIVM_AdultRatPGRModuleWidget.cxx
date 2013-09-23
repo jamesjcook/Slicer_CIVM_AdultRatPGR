@@ -37,6 +37,9 @@
 #include "vtkMRMLDisplayNode.h"
 #include "vtkMRMLSliceNode.h"
 #include "vtkMRMLSliceLogic.h"
+#include "vtkMRMLScalarVolumeNode.h"
+//#include <vtkImageData.h>
+
 #include "vtkMRMLSliceCompositeNode.h"
 #include "vtkMRMLLayoutLogic.h"
 
@@ -46,6 +49,7 @@
 #include <ctkSliderWidget.h>
 #include <vtkTransform.h>
 #include "vtkMRMLApplicationLogic.h"
+
 
 //-----------------------------------------------------------------------------
 /// \ingroup Slicer_QtModules_ExtensionTemplate
@@ -100,13 +104,17 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
 //   sliderPos[0]=0;
 //   sliderPos[1]=0;
 //   this->Pos=sliderPos;
-//   double sliderAngle[2];
-//   sliderAngle[0]=0;
-//   sliderAngle[1]=0;
-//   this->Angle=sliderAngle;
+
+//   double SliderAngle[4];
+//   this->Angle=SliderAngle;
+//   Angle[0]=0;
+//   Angle[1]=0;
+//   Angle[2]=0;
+//   Angle[3]=0;
+
 //  this->SlicePointer=0;
-  this->Angle=0;
-  this->Pos=0;
+   this->Angle=0;
+   this->Pos=0;
   //  this->LoadLabels=false;
   
   /* Load data paths */
@@ -124,7 +132,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   this->LabelPattern =QString("pndtimepoint_average_labels.nii");
   //Timepoint=80; using the same code as our time/contrast bit so we can switch between timepoints for more rapid testing.
   // see the buildscene function for the list of times allowed.
-  ImageContrasts << "adc" << "b0" << "dwi" << "fa" << "fa_color"  << "freq" << "gre" << "rd";
+  ImageContrasts << "ad" << "adc" << "b0" << "dwi" << "fa" << "fa_color"  << "freq_16" << "gre_16" << "rd";
   
   //  void QComboBox::setItemText ( int index, const QString & text )
   //  void QComboBox::insertItems ( int index, const QStringList & list )
@@ -138,44 +146,20 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   d->ComboBoxB->setCurrentIndex(-1);
 
   //insert button connections here.
+  connect(d->HistologySelector,SIGNAL(clicked()),SLOT(HistologySelectionDialog()));
+  //insert drop down connections here.
   connect(d->ComboBoxA,SIGNAL(currentIndexChanged(int)),SLOT(BuildScene()));
   connect(d->ComboBoxB,SIGNAL(currentIndexChanged(int)),SLOT(BuildScene()));
-  // connect(d->setTimeContrastLayoutButton, SIGNAL(clicked()), SLOT(SetTimeContrastLayout()));
-  // d->GallerySelectionStack->setCurrentIndex(d->GallerySelectionComboBox->currentIndex());
-  // d->orientationComboBox->setEnabled(false);
   //Connect our slice slider here.
-  
-  connect(d->sliderSlice, SIGNAL(valueChanged(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
-  //connect(d->sliderSlice, SIGNAL(valueChanged(double)), SLOT(SetPosition(double)), Qt::QueuedConnection);
-  connect(d->sliderAngle, SIGNAL(valueChanged(double)), SLOT(SetSliceGeometry(double)), Qt::QueuedConnection);
+  connect(d->SliderSlice, SIGNAL(valueChanged(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
+  connect(d->SliderAngle, SIGNAL(valueChanged(double)), SLOT(SetSliceGeometry(double)), Qt::QueuedConnection);
 
-//  connect(d->sliderSlice, SIGNAL(valueIsChanging(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
-  
-  
-
-  //  connect(d, SIGNAL(mrmlSceneChanged(vtkMRMLScene*)), d->sliderSlice, SLOT(setMRMLScene(vtkMRMLScene*)));
+  //  connect(d, SIGNAL(mrmlSceneChanged(vtkMRMLScene*)), d->SliderSlice, SLOT(setMRMLScene(vtkMRMLScene*)));
   //  connect(d->SettingsPanel,SIGNAL(initalized()),SLOT(BuildScene())); // there is no initalized settings! :p
   //  this->BuildScene(); cannot simply call functions in here befcause the class is not set up yet.
 
   //this->SliceOffsetSlider = new qMRMLSliderWidget(q);
-  d->sliderSlice->setTracking(true);
-//  d->sliderSlice->setToolTip(q->tr("Slice distance from RAS origin"));
-//  d->sliderSlice->setQuantity("length");
-//   d->sliderSlice->setUnitAwareProperties(
-//     qMRMLSliderWidget::Suffix|qMRMLSliderWidget::Precision|qMRMLSliderWidget::Scaling);
-//   d->sliderSlice->spinBox()->setDecimalsOption(
-//     ctkDoubleSpinBox::DecimalsByShortcuts |
-//     ctkDoubleSpinBox::DecimalsByKey |
-//     ctkDoubleSpinBox::DecimalsAsMin );
-  // Connect Slice offset slider
-
-//  connect(d->sliderSlice, SIGNAL(valueChanged(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
-//  connect(d->sliderSlice, SIGNAL(valueIsChanging(double)), SLOT(trackSliceOffsetValue(double)), Qt::QueuedConnection);
-//  connect(SIGNAL(mrmlSceneChanged(vtkMRMLScene*)), d->sliderSlice, SLOT(setMRMLScene(vtkMRMLScene*)));
-
-//  d->SettingsPanel->addWidget(d->sliderSlice);
-
-
+  d->SliderSlice->setTracking(true);
 }
 
 QStringList qSlicerCIVM_AdultRatPGRModuleWidget::GetContrasts()
@@ -292,9 +276,6 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetViewNodeProperties(QString nodeName
       this->PrintText("Bad view node or not a view node");
       return;
     }
-
-
-
   //   for (vtkMRMLNode *sn = NULL; (sn=currentScene->GetNextNode());) {
   //     if (sn->GetName()==nodeName) {
   //      this->PrintText(""+nodeName +" found.");
@@ -307,98 +288,14 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetViewNodeProperties(QString nodeName
   return;
 }
 
-
-
-//void qSlicerCIVM_AdultRatPGRModuleWidget::sliceConnector(vtkMRMLNode *n, qSlicerLayoutManager *layoutManager) 
-//{
-//  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget); //i think the Q_D line connects us back to our parent widget
-//  Q_Q(qSlicerCIVM_AdultRatPGRModuleWidget); //i think the Q_D line connects us back to our parent widget
-  /* 
-  // create the ControllerWidget and wire it to the appropriate node
-  qMRMLViewControllerBar *barWidget = 0;
-  vtkMRMLSliceNode *sn = vtkMRMLSliceNode::SafeDownCast(n);
-  if (sn)
-    {
-    qMRMLSliceControllerWidget *widget =
-      new qMRMLSliceControllerWidget(this->SliceControllersCollapsibleButton);
-    widget->setSliceViewName( sn->GetName() ); // call before setting slice node
-    widget->setSliceViewLabel( sn->GetLayoutLabel() );
-
-    QColor layoutColor = QColor::fromRgbF(sn->GetLayoutColor()[0],
-                                          sn->GetLayoutColor()[1],
-                                          sn->GetLayoutColor()[2]);
-    widget->setSliceViewColor( layoutColor );
-    widget->setMRMLSliceNode( sn );
-    widget->setLayoutBehavior( qMRMLViewControllerBar::Panel );
-
-    // SliceControllerWidget needs to know the SliceLogic(s)
-    qMRMLSliceWidget *sliceWidget = layoutManager->sliceWidget(sn->GetLayoutName());
-    widget->setSliceLogics(layoutManager->mrmlSliceLogics());
-    widget->setSliceLogic(sliceWidget->sliceController()->sliceLogic());
-
-    // add the widget to the display
-    this->SliceControllersLayout->addWidget(widget);
-
-    barWidget = widget;
-    }
-*/
-/*
-  // create the ControllerWidget and wire it to the appropriate node
-  qMRMLViewControllerBar *barWidget = 0;
-  vtkMRMLSliceNode *sn = vtkMRMLSliceNode::SafeDownCast(n);
-  if (sn)
-    {
-    //qMRMLSliceControllerWidget *widget =
-    //new qMRMLSliceControllerWidget(this->SliceControllersCollapsibleButton);
-    qMRMLSliceControllerWidget *widget =
-      new qMRMLSliceControllerWidget(this->SettingsPanel); //SliderFrame
-    widget->setSliceViewName( sn->GetName() ); // call before setting slice node
-    widget->setSliceViewLabel( sn->GetLayoutLabel() );
-
-    QColor layoutColor = QColor::fromRgbF(sn->GetLayoutColor()[0],
-                                          sn->GetLayoutColor()[1],
-                                          sn->GetLayoutColor()[2]);
-    widget->setSliceViewColor( layoutColor );
-    widget->setMRMLSliceNode( sn );
-    widget->setLayoutBehavior( qMRMLViewControllerBar::Panel );
-
-    // SliceControllerWidget needs to know the SliceLogic(s)
-    qMRMLSliceWidget *sliceWidget = layoutManager->sliceWidget(sn->GetLayoutName());
-    widget->setSliceLogics(layoutManager->mrmlSliceLogics());
-    widget->setSliceLogic(sliceWidget->sliceController()->sliceLogic());
-
-    // add the widget to the display
-    this->SliceControllersLayout->addWidget(widget);
-
-    barWidget = widget;
-    }
-  this->ControllerMap[n]=barWidget;
-// */
-/*
-  //this->SliceOffsetSlider = new qMRMLSliderWidget(q);
-  d->sliderSlice->setTracking(false);
-  d->sliderSlice->setToolTip(q->tr("Slice distance from RAS origin"));
-  d->sliderSlice->setQuantity("length");
-  d->sliderSlice->setUnitAwareProperties(
-    qMRMLSliderWidget::Suffix|qMRMLSliderWidget::Precision|qMRMLSliderWidget::Scaling);
-  d->sliderSlice->spinBox()->setDecimalsOption(
-    ctkDoubleSpinBox::DecimalsByShortcuts |
-    ctkDoubleSpinBox::DecimalsByKey |
-    ctkDoubleSpinBox::DecimalsAsMin );
-  // Connect Slice offset slider
-  d->connect(d->sliderSlice, SIGNAL(valueChanged(double)),
-                q, SLOT(setSliceOffsetValue(double)), Qt::QueuedConnection);
-  d->connect(d->sliderSlice, SIGNAL(valueIsChanging(double)),
-                q, SLOT(trackSliceOffsetValue(double)), Qt::QueuedConnection);
-  d->connect(q, SIGNAL(mrmlSceneChanged(vtkMRMLScene*)),
-                d->sliderSlice, SLOT(setMRMLScene(vtkMRMLScene*)));
-
-  d->SettingsPanel->addWidget(d->sliderSlice);
-
-  return;
+//-----------------------------------------------------------------------------
+// build mrml and load datasests
+QString qSlicerCIVM_AdultRatPGRModuleWidget::HistologySelectionDialog()
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget); 
+  QString hist_path = "dummy file";
+  return hist_path;
 }
-// */
-
 //-----------------------------------------------------------------------------
 // build mrml and load datasests
 void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
@@ -412,7 +309,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
   */
 
   QStringList timepointList;
-  timepointList<< "02";
+  timepointList<< "80";
   QStringList contrastList  = this->GetContrasts();
   // make sure we have two image contrasts selected, refuse to run if we do not.
   if (contrastList.size()<2 )
@@ -560,7 +457,39 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
     }
 
   //load data
+  d->SliderSlice->reset();//setValue(0);//
+  d->SliderAngle->reset();//setValue(0);//
+  this->ResetTransform();
   s_app_obj->coreIOManager()->loadNodes(unloadedFiles); // images
+  currentScene->InitTraversal();
+  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
+//  vtkImageData * imageData = NULL;
+//  imageData=vtkImageData::SafeDownCast(currentScene->GetNextNodeByClass("vtkImageData"));
+  std::vector<double> range (2,0);
+  vtkMRMLNode * vNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+//   scalarvolumenode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode");//vtkMRMLScalarVolumeNode::SafeDownCast();
+  
+   while( vNode != NULL)
+     {
+     this->PrintText("Getting range\n");
+     range=this->GetSliderRange(vNode);
+     vNode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+     }
+   this->PrintText("Setting range\n");
+   this->SetSliderRange(d->SliderSlice,range);
+//   if (sliceNode !=NULL && snCounter>0 && snCounter<3) 
+//     { 
+//     this->PrintText("Setting range\n");
+//     // commented code works, it was just harder to debug.
+//     std::vector<double> range=this->GetSliderRange(sliceNode);
+//     QTextStream test(stdout);
+//     test << range[0] << range[1] << "\n";
+//     this->SetSliderRange(d->SliderSlice,range);
+//     //this->SetSliderRange(d->SliderSlice,this->GetSliderRange(sliceNode));
+//     } else 
+//     { 
+//     this->PrintText("Skipped Setting range!\n");
+//     }
   
   ////
   //arrange objects.
@@ -597,7 +526,10 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
       { 
       this->PrintText("Bad composite node or no composite node for SceneNode"+sliceCompositeNodeID);
       }
-
+    if (scNode !=NULL && snCounter==1 ) // && snCounter<3) 
+    {
+    scNode->SetSliceIntersectionVisibility(1);
+    }
     //<>//
     if ( scNode != NULL )  
     //if we have a composinte node sucessfully downcast to assign volumes to
@@ -677,19 +609,6 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
       { //we'll enter this code if we are on orthogonal or dual3d for the 3d volumes
       this->PrintText("SliceComposite bad:"+sliceCompositeNodeID+" could not downcast!");
       }
-    if (sliceNode !=NULL && snCounter>0 && snCounter<3) 
-      { 
-      this->PrintText("Setting range\n");
-        // commented code works, it was just harder to debug.
-         std::vector<double> range=this->GetSliderRange(sliceNode);
-         QTextStream test(stdout);
-         test << range[0] << range[1] << "\n";
-         this->SetSliderRange(d->sliderSlice,range);
-         //this->SetSliderRange(d->sliderSlice,this->GetSliderRange(sliceNode));
-      } else 
-      { 
-      this->PrintText("Skipped Setting range!\n");
-      }
     if (sn == NULL ) 
       { 
       vtkMRMLNode     *vn       = currentScene->GetNodeByID(viewNodeID.toStdString());
@@ -705,6 +624,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
         }
       }
     }
+
   return;
 }
 
@@ -737,7 +657,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setSliceLogic(vtkMRMLSliceLogic * newS
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
-  this->PrintMethod("SetSliceGeometry\n");
+//  this->PrintMethod("SetSliceGeometry\n");
   // get a reformat widget aimed at the yellow slice, read the current orientation of the yellow slice for the starting point. 
   // read the values for offest and angle
   // apply them to the reformat widget
@@ -755,11 +675,12 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
   QString         sliceNodeID = NULL;
   vtkMRMLNode             *sn = NULL;
   vtkMRMLSliceNode *sliceNode = NULL;
-  vtkMRMLSliceLogic* MRMLSliceLogic;
+//  vtkMRMLSliceLogic* MRMLSliceLogic;
 
   //double value () const
   //this->Pos;
   //this->Angle;
+  QTextStream test(stdout);
   for (int snCounter=1;snCounter<3;snCounter++) //SceneNodes.size()-1
     {
     sliceNodeID = QString("vtkMRMLSliceNode")+SceneNodes[snCounter];
@@ -770,27 +691,67 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
       sliceNode = vtkMRMLSliceNode::SafeDownCast(sn); //SliceNode    
       if ( sliceNode != NULL ) 
         { 
-        // sliceNode->SetSliceOffset(this->Pos);
+//        QString temp="Setting Angle on slice: "+sliceNodeID+" ";
+//        this->PrintText(temp);
         transform->SetMatrix(sliceNode->GetSliceToRAS());
-        //MRMLSliceLogic =  this->logic()->GetMRMLApplicationLogic()->GetSliceLogic(sliceNode);
-        //MRMLSliceLogic->SetSliceOffset(this->Pos);
         // Rotate on LR given the angle with the last value reccorded
-        //this->Angle[1]-this->Angle[0]
-        transform->RotateX(this->Angle-d->sliderAngle->value()); //rotation-d->LastRotationValues[axisX]
-        //this->Angle[0]=this->Angle[1];
-        Angle=d->sliderAngle->value();
+//         test << "Last:"<< Angle[snCounter]
+//              << " next:"<< d->SliderAngle->value() 
+//              << " diff:" << Angle[snCounter]-d->SliderAngle->value() << "\n" ;
+//         transform->RotateX(this->Angle[snCounter]-d->SliderAngle->value()); //rotation-d->LastRotationValues[axisX]
+//         Angle[snCounter]=d->SliderAngle->value();
+
+        transform->RotateX(this->Angle-d->SliderAngle->value()); //rotation-d->LastRotationValues[axisX]
         sliceNode->GetSliceToRAS()->DeepCopy(transform->GetMatrix());
         sliceNode->UpdateMatrices();
         sliceNode->SetOrientationToReformat();
-        // Update last value and apply the transform
-        // d->LastRotationValues[axisX] = rotation;
         } //endslicenode null check
       }// end sn null check
     }// end for
-  
+  Angle=d->SliderAngle->value();
   return;
 }
 
+void qSlicerCIVM_AdultRatPGRModuleWidget::ResetTransform()
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);  
+  vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New();
+  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
+  vtkMRMLScene* currentScene = this->mrmlScene();
+  currentScene->InitTraversal();
+  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
+  // Will probably fail if more than one layout is allowed. Oh well for now.
+  QString         sliceNodeID = NULL;
+  vtkMRMLNode             *sn = NULL;
+  vtkMRMLSliceNode *sliceNode = NULL;
+
+
+//  for (int snCounter=1;snCounter<3;snCounter++) //SceneNodes.size()-1
+  sliceNode = vtkMRMLSliceNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLSliceNode"));
+
+  while(sliceNode)
+    {
+//     sliceNodeID = QString("vtkMRMLSliceNode")+SceneNodes[snCounter];
+//     sn          = currentScene->GetNodeByID(sliceNodeID.toStdString());
+//     sliceNode   = NULL;
+//     if ( sn != NULL ) 
+//       { 
+      sliceNode = vtkMRMLSliceNode::SafeDownCast(sn); //SliceNode    
+      if ( sliceNode != NULL ) 
+        {
+//        transform->SetMatrix(sliceNode->GetSliceToRAS());
+//        transform->RotateX(this->Angle-d->SliderAngle->value()); //rotation-d->LastRotationValues[axisX]
+        transform->Identity();
+        sliceNode->GetSliceToRAS()->DeepCopy(transform->GetMatrix());
+        sliceNode->UpdateMatrices();
+        sliceNode->SetOrientationToReformat();
+        }
+//       }
+      sliceNode = vtkMRMLSliceNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLSliceNode"));
+    }
+
+  return;
+}
 // --------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
 {
@@ -835,12 +796,13 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
 
 
 // --------------------------------------------------------------------------
-double qSlicerCIVM_AdultRatPGRModuleWidget::GetSliceOffsetValue(vtkMRMLSliceNode * sn)
-{
-  double offset;
-  offset=sn->GetSliceOffset();
-  return offset;
-}
+// double qSlicerCIVM_AdultRatPGRModuleWidget::GetSliceOffsetValue(vtkMRMLNode * n)
+// {
+//   double offset;
+//   vtkMRMLSliceNode sn = vtkMRMLSliceNode::SafeDownCast(n);
+//   offset=sn->GetSliceOffset();
+//   return offset;
+// }`
 
 // --------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliderRange(ctkSliderWidget * widge, std::vector<double> range) //vtkMRMLSliceMode
@@ -871,7 +833,84 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliderRange(ctkSliderWidget * widge
   return ;
 } // */
 // --------------------------------------------------------------------------
-std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLNode * n)
+//std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkImageData * node)
+std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLNode * node)
+{
+  this->PrintMethod("GetSliderRange");
+   std::vector<double> range (2,0);
+   range[0] = 0;
+   range[1] = 1;
+//   std::vector<double> xrange (2,0);
+//   std::vector<double> yrange (2,0);
+//   std::vector<double> zrange (2,0);
+   double sliceBounds[6] = {0, -1, 0, -1, 0, -1};//xmin,xmax,ymin,ymax,zmin,zmax
+   vtkMRMLScalarVolumeNode *  localNode = NULL;
+   localNode = vtkMRMLScalarVolumeNode::SafeDownCast(node);
+    localNode->GetRASBounds(sliceBounds);
+    range[0]=sliceBounds[0];
+    range[1]=sliceBounds[1];
+    QTextStream test(stdout);  
+    test << "Returning range \t";
+    for(int it=0;it<range.size(); it++)
+      {
+      test<< range[it] << " \t";
+      }
+//   double * fov;
+//   double * spacing;
+//   int * dims ;
+//   double * origin; 
+
+//   origin=node->GetOrigin();    //gets the image origin, not the centered bits...
+//   test<< "\tgetorigin\n";
+//   test << "\tX," << origin[0] << "Y," << origin[1] << "Z," << origin[2]
+//        << "\n";
+//   dims=node->GetDimensions();
+// //   xrange[1]=dims[0]-origin[0];
+// //   yrange[1]=dims[1]-origin[1];
+// //   zrange[1]=dims[2]-origin[2];
+//   spacing=node->GetSpacing();     // this is in the correct bits
+//   test<< "\tGetfov\n";
+//   for(int it=0; it<3;it++) 
+//     {
+//     fov[it]=dims[it]*spacing[it];
+//     }
+//   test << "\tX," << fov[0] << "Y," << fov[1] << "Z," << origin[2]
+//        << "\n";
+//   if ( this->CenterVolumeOnLoad ) 
+//     {
+//     test << "\tsetcentered\n";
+//     origin[0]=fov[0]/2;
+//     origin[1]=fov[1]/2;
+//     origin[2]=fov[2]/2;
+//     }
+//   test<< "\tset min\n";
+//   xrange[0]=floor(-origin[0]);
+//   yrange[0]=floor(-origin[1]);
+//   zrange[0]=floor(-origin[2]);
+//   test<< "\tset max\n";
+//   xrange[1]=ceil(fov[0]-origin[0]);
+//   yrange[1]=ceil(fov[1]-origin[1]);
+//   zrange[1]=ceil(fov[2]-origin[2]);
+
+//   test << "X," << origin[0] << "Y," << origin[1]  << "Z," << origin[2]
+//        << "\n"
+//        << "X," << xrange[0]<< ":" << xrange[1] << " "
+//        << "Y," << yrange[0]<< ":" << yrange[1] << " "
+//        << "Z," << zrange[0]<< ":" << zrange[1] << " "
+//        << "\n"
+//        << "default," << range[0]<< ":"<< range[1] << " \n";
+//   range=yrange;
+//   test << "Returning range \t";
+//   for(int it=0;it<range.size(); it++)
+//     {
+//     test<< range[it] << " \t";
+//     }
+//   test << "\n";
+  return range;
+}
+
+// --------------------------------------------------------------------------
+std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRangeSlice(vtkMRMLNode * n)
 {
 
   this->PrintMethod("GetSliderRange");
@@ -892,11 +931,9 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLN
     { 
     sn = vtkMRMLSliceNode::SafeDownCast(n); //SliceNode
    }
-  
   if ( sn != NULL ) 
     { 
     this->PrintText("Node good, proceding\n");
-
     //THis slice logic stuff causes a timebomb crash, i cant figure out why
     //vtkMRMLSliceLogic * sliceLogic = 0;
     //sliceLogic=vtkMRMLSliceLogic::New();
@@ -961,7 +998,8 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLN
   }
   test << "\n";
   return range;
-};
+}
+
 /*
 void qSlicerCIVM_AdultRatPGRModuleWidget::IncrimentSlider(ctkSliderWidget * )
 {
