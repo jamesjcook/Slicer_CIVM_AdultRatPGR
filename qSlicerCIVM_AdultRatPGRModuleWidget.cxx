@@ -50,7 +50,6 @@
 #include <vtkTransform.h>
 #include "vtkMRMLApplicationLogic.h"
 
-
 //-----------------------------------------------------------------------------
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class qSlicerCIVM_AdultRatPGRModuleWidgetPrivate: public Ui_qSlicerCIVM_AdultRatPGRModuleWidget
@@ -115,7 +114,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
 //  this->SlicePointer=0;
    this->Angle=0;
    this->Pos=0;
-  //  this->LoadLabels=false;
+   this->LoadLabels=true;
   
   /* Load data paths */
   /* hardcode for now*/
@@ -130,6 +129,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   //this->DataPattern  =QString("ptimepoint_average_contrast.nii");
   this->DataPattern  =QString("ptimepoint_average_contrast.nii");
   this->LabelPattern =QString("pndtimepoint_average_labels.nii");
+  this->HistologyNodeName=QString("NO_IMAGE");
   //Timepoint=80; using the same code as our time/contrast bit so we can switch between timepoints for more rapid testing.
   // see the buildscene function for the list of times allowed.
   ImageContrasts << "ad" << "adc" << "b0" << "dwi" << "fa" << "fa_color"  << "freq_16" << "gre_16" << "rd";
@@ -175,14 +175,14 @@ QStringList qSlicerCIVM_AdultRatPGRModuleWidget::GetContrasts()
     contrast_list << d->ComboBoxA->currentText();
     } else 
     {
-    this->PrintText("ComboBoxA undefined\n");
+    this->PrintText("ComboBoxA undefined");
     }
   if ( d->ComboBoxB->currentText() != "" && d->ComboBoxB->currentIndex() !=-1 )
     {
     contrast_list << d->ComboBoxB->currentText();
     } else 
     { 
-    this->PrintText("ComboBoxB undefined\n");
+    this->PrintText("ComboBoxB undefined");
     }
   
   return contrast_list;
@@ -219,11 +219,9 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetViewNodeProperties(QString nodeName
   vtkMRMLNode *sn = currentScene->GetNodeByID(nodeName.toStdString());
   vtkMRMLViewNode *vNode = NULL;
   //qSlicerIO::IOProperties *viewNodeProps;
-
   if ( sn != NULL )
     {
       vNode = vtkMRMLViewNode::SafeDownCast(sn); //Composite
-
       if ( vNode !=NULL )
 	{
 	  this->PrintText("SET PROPERTIES FOR VIEWER HERE");
@@ -290,11 +288,57 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetViewNodeProperties(QString nodeName
 
 //-----------------------------------------------------------------------------
 // build mrml and load datasests
-QString qSlicerCIVM_AdultRatPGRModuleWidget::HistologySelectionDialog()
+void qSlicerCIVM_AdultRatPGRModuleWidget::HistologySelectionDialog()
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget); 
   QString hist_path = "dummy file";
-  return hist_path;
+  qSlicerApplication * app = qSlicerApplication::application();
+  bool status=app->ioManager()->openAddVolumeDialog(); //loadScene(out_path);
+  QStringList histologySlides;
+  QTextStream out(stdout);  
+  if ( status )
+    {
+    vtkMRMLScene* currentScene = this->mrmlScene();
+    currentScene->InitTraversal();
+    vtkMRMLScalarVolumeNode * hNode =  vtkMRMLScalarVolumeNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode")) ;
+    //vtkMRMLNode *sn = currentScene->GetNodeByID(nodeName.toStdString());
+    while (hNode !=NULL ) 
+      {
+      double sliceBounds[6] = {0, -1, 0, -1, 0, -1};//xmin,xmax,ymin,ymax,zmin,zmax
+      hNode->GetRASBounds(sliceBounds);
+      double zmin=sliceBounds[4];
+      double zmax=sliceBounds[5];
+
+      out << "Examining node for Slides list";
+      if( zmax-zmin==1 ) 
+        {
+        histologySlides << hNode->GetName(); //GetID
+        out << "\tAdded " <<hNode->GetName();
+        } 
+      else 
+        {
+        out << zmin << ":" << zmax << "!=1" ;
+        }
+
+      //GetName()
+      hNode = vtkMRMLScalarVolumeNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode")) ;
+
+      }
+    for(int it=0;it<histologySlides.size();it++) 
+      {
+      this->HistologyNodeName=histologySlides[it];
+      out << histologySlides[it];
+      }
+    }
+  else
+    {
+    this->PrintText("Histology Load Failed!");
+    this->HistologyNodeName=QString("NO_IMAGE");
+    }
+  out << "\n";  
+  //qSlicerApplication::application()->ioManager()->openLoadSceneDialog();// change dialog to just add the scene.
+
+  return ;
 }
 //-----------------------------------------------------------------------------
 // build mrml and load datasests
@@ -349,9 +393,9 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
   // These are the correct orientations for PGR, However the data is not oriented correctly,
   // so we'll override the override for now with following
   orientationOverride.clear();
-  orientationOverride  << "Coronal" << "Sagittal" << "Sagittal" << "Sagittal";
+  orientationOverride  << "Coronal" << "Sagittal" << "Sagittal" << "Axial";
   
-  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
+
   vtkMRMLScene* currentScene = this->mrmlScene();
   currentScene->InitTraversal();
   currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout. Will probably fail if more than one layout is allowed. Oh well for now.
@@ -392,7 +436,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
         imageProperties << tParams;
         this->PrintText("imageProperties << "+imageFile);
         this->PrintText("Added volume to load list:"+imagePath);
-        /*if( LoadLabels )
+        if( LoadLabels )
           {
           nodeName                   = labelNode;
           tParams["fileName"]        = labelPath;
@@ -403,7 +447,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
           labelProperties << tParams;
           this->PrintText("labelProperties << "+labelFile);
           this->PrintText("Added labels to load list:"+labelPath);
-          }*/
+          }
         }
       else 
         {
@@ -460,26 +504,13 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
   d->SliderSlice->reset();//setValue(0);//
   d->SliderAngle->reset();//setValue(0);//
   this->ResetTransform();
+  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
   s_app_obj->coreIOManager()->loadNodes(unloadedFiles); // images
-  currentScene->InitTraversal();
-  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
-//  vtkImageData * imageData = NULL;
-//  imageData=vtkImageData::SafeDownCast(currentScene->GetNextNodeByClass("vtkImageData"));
-  std::vector<double> range (2,0);
-  vtkMRMLNode * vNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
-//   scalarvolumenode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode");//vtkMRMLScalarVolumeNode::SafeDownCast();
-  
-   while( vNode != NULL)
-     {
-     this->PrintText("Getting range\n");
-     range=this->GetSliderRange(vNode);
-     vNode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
-     }
-   this->PrintText("Setting range\n");
-   this->SetSliderRange(d->SliderSlice,range);
+//  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
+
 //   if (sliceNode !=NULL && snCounter>0 && snCounter<3) 
 //     { 
-//     this->PrintText("Setting range\n");
+//     this->PrintText("Setting range");
 //     // commented code works, it was just harder to debug.
 //     std::vector<double> range=this->GetSliderRange(sliceNode);
 //     QTextStream test(stdout);
@@ -488,7 +519,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
 //     //this->SetSliderRange(d->SliderSlice,this->GetSliderRange(sliceNode));
 //     } else 
 //     { 
-//     this->PrintText("Skipped Setting range!\n");
+//     this->PrintText("Skipped Setting range!");
 //     }
   
   ////
@@ -499,6 +530,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
   //for now just set properties in 3d views, rather than setting the volume settings.
   snCounter=0;
   int imCounter;
+//for (snCounter=SceneNodes.size();snCounter>=0;snCounter--) 
   for (snCounter=0;snCounter<SceneNodes.size();snCounter++) 
     {
     imCounter=floor(snCounter/2);
@@ -509,7 +541,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
     vtkMRMLNode      *sn        = currentScene->GetNodeByID(sliceNodeID.toStdString());
     vtkMRMLSliceNode *sliceNode = NULL;
     if ( sn != NULL ) 
-      { 
+      {
       sliceNode = vtkMRMLSliceNode::SafeDownCast(sn); //SliceNode
       } 
     else 
@@ -526,19 +558,15 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
       { 
       this->PrintText("Bad composite node or no composite node for SceneNode"+sliceCompositeNodeID);
       }
-    if (scNode !=NULL && snCounter==1 ) // && snCounter<3) 
-    {
-    scNode->SetSliceIntersectionVisibility(1);
-    }
-    //<>//
     if ( scNode != NULL )  
-    //if we have a composinte node sucessfully downcast to assign volumes to
-      { //vtkMRMLSliceCompositeNode
+      //if we have a composinte node sucessfully downcast to assign volumes to
+      { //check vtkMRMLSliceCompositeNode good
+      //<>//
       this->PrintText("SliceComposite ready:"+sliceCompositeNodeID);
       //set default orientations according to slicer rules.
       if(SceneNodes.size()==orthogonalOrientations.size() && snCounter<orthogonalOrientations.size() )
         {
-        this->PrintText("Setting default orientation\n");
+        this->PrintText("Setting default orientation");
         sliceNode->SetOrientation(orthogonalOrientations[snCounter].toLatin1());
         }
       else 
@@ -549,62 +577,160 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
       if(setSliceOrient) 
         {
         this->PrintText("Setting override orientation");
-        scNode->SetLinkedControl(1);
         sliceNode->SetOrientation(orientationOverride[snCounter].toLatin1());
-	sliceNode->SetOrientationToReformat();
+        sliceNode->SetOrientationToReformat();
         }
       else 
         {
         this->PrintText("No orientation override. Not setting.");
         }
-      //<<.>>//
-      if(imCounter<imageProperties.size()) //prevents bad index crash
-        {
-        this->PrintText("SetBackgroundVolumeID:"+imageProperties[imCounter]["nodeName"].toString());
-        scNode->SetBackgroundVolumeID(this->NodeID(imageProperties[imCounter]["nodeName"].toString())); //set image
-        if( LoadLabels )
-          { 
-          this->PrintText("SetLabelVolumeID:"+labelProperties[imCounter]["nodeName"].toString());
-          scNode->SetLabelVolumeID(this->NodeID(labelProperties[imCounter]["nodeName"].toString()));	//set labels
-          /* if(GalleryName=="Multiple Sclerosis") //MSSingle" || GalleryName=="MSDual" || GalleryName=="MSComparison" )
-             {
-             scNode->SetLabelOpacity(1.0); 
-             sliceNode->SetUseLabelOutline(true);
-             if (this-> Layout=="MSComparison")
-             {
-             if(SceneNodes[snCounter]=="Red"||SceneNodes[snCounter]=="Green")
-             {
-             this->PrintText("turning off labels for this viewer");
-             scNode->SetLinkedControl(0);
-             scNode->SetLabelOpacity(0); 
-             scNode->SetLinkedControl(1);
-             }
-             }
-             }
-             else 
-             {// */
-          scNode->SetLabelOpacity(0.25); 
-          sliceNode->SetUseLabelOutline(false);
-          //}
-          }
-        else 
-          {
-          this->PrintText("LabelID=NULL");
-          scNode->SetLabelVolumeID(NULL);
-          }
+      if( LoadLabels )
+        { 
+        this->PrintText("SetLabelVolumeID:"+labelProperties[imCounter]["nodeName"].toString());
+        scNode->SetLabelVolumeID(this->NodeID(labelProperties[imCounter]["nodeName"].toString()));	//set labels
+        scNode->SetLabelOpacity(1); 
+        sliceNode->SetUseLabelOutline(true);
         }
       else 
-        { //there are more scene nodes than there are volumes. 
-        //ifnodis yellow, 
-        /*if ( SceneNodes[snCounter]=="yellow" ) 
-          {//should only run on dual3d
-          scNode->SetForegroundVolumeID(this->NodeID(imageProperties[1]["nodeName"].toString())); // set overlay
-          scNode->SetForegroundOpacity(0.50);
-          }// */
-        
+        {
+        this->PrintText("LabelID=NULL");
+        scNode->SetLabelVolumeID(NULL);
         }
-      //end check for good scNode
-      }
+      //specific viewer settings
+      if( snCounter==0 || snCounter==1 || snCounter==2 )
+        {  //! strcmp(HistologyNodeName,"NO_IMAGE")
+        if(imCounter<imageProperties.size()) //prevents bad index crash
+          {
+          this->PrintText("SetBackgroundVolumeID:"+imageProperties[imCounter]["nodeName"].toString());
+          scNode->SetBackgroundVolumeID(this->NodeID(imageProperties[imCounter]["nodeName"].toString())); //set image
+          //scNode->SetaAnnotationSpcae();
+          }
+        //get the range setting from the volumes.
+        currentScene->InitTraversal();
+        std::vector<double> range (2,0);
+        vtkMRMLNode * vNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+        while( vNode != NULL) // traverse volume nodes looking for the node we're currently assigning. 
+          {
+          if ( vNode->GetName() ==imageProperties[imCounter]["nodeName"] ) 
+            {
+            //            this->PrintText("Getting range from current node.");//"+imageProperties[imCounter]["nodeName"]+"
+            range=this->GetSliderRange(vNode);
+	    //            this->PrintText("Setting range");
+            this->SetSliderRange(d->SliderSlice,range);
+//             if ( snCounter !=0 ) 
+//               {
+//               scNode->SetLinkedControl(1);
+//               this->PrintText("Getting Slice FOV");
+//               std::vector<double> sliceFov ( 3,0);
+//               sliceFov=this->GetSliceFOV(vNode); //gets volume bounds, and uses that to set slice fov.
+	      
+// 	      double * sliceDims;
+// 	      sliceDims = sliceNode->GetDimensions();
+	      
+	      
+//               sliceNode->SetFieldOfView(sliceFov[0],sliceFov[1],sliceFov[2]);
+//               std::vector<double> origin (3,0);
+//               sliceNode->SetXYZOrigin(origin[0],origin[1],origin[2]);
+//               }
+            }
+          vNode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+          }
+//         currentScene->InitTraversal();
+//         vtkMRMLNode * volNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+//         while( volNode != NULL) // traverse volume nodes looking for the node we're currently assigning. 
+//           {
+//           if ( volNode->GetName() ==imageProperties[imCounter]["nodeName"] ) 
+//             {
+//             this->PrintText("Getting Slice FOV");
+//             std::vector<double> sliceFov ( 3,0);
+//             sliceFov=this->GetSliceFOV(volNode); //gets volume bounds, and uses that to set slice fov.
+//             sliceNode->SetFieldOfView(sliceFov[0],sliceFov[1],sliceFov[2]);
+//             std::vector<double> origin (3,0);
+//             sliceNode->SetXYZOrigin(origin[0],origin[1],origin[2]);
+//             }
+//           volNode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+//           }
+        //<<.>>//
+        if (snCounter==1 ) 
+          { // && snCounter<3) // only turn on visiblilty on slicenode yellow, to give yellow slice indicator in the sagital view
+          scNode->SetSliceIntersectionVisibility(1);
+          }
+        }
+      else if( snCounter==3 && HistologyNodeName != "NO_IMAGE" )  //! strcmp(HistologyNodeName,"NO_IMAGE")
+        {
+        this->PrintText("HistologyNodeName Good");
+        scNode->SetBackgroundVolumeID(this->NodeID(HistologyNodeName)); //set image
+        //scNode->SetLinkedControl(0);
+//         currentScene->InitTraversal();
+//         vtkMRMLNode * vNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+//         while( vNode != NULL) // traverse volume nodes looking for the node we're currently assigning. 
+//           {
+//           if ( vNode->GetName() ==imageProperties[imCounter]["nodeName"] ) 
+//             {
+//             this->PrintText("Getting Slice FOV");
+//             std::vector<double> sliceFov ( 3,0);
+//             sliceFov=this->GetSliceFOV(vNode); //gets volume bounds, and uses that to set slice fov.
+//             sliceNode->SetFieldOfView(sliceFov[0],sliceFov[1],sliceFov[2]);
+//             std::vector<double> origin (3,0);
+//             sliceNode->SetXYZOrigin(origin[0],origin[1],origin[2]);
+//             }
+          }        
+        this->PrintText("Histology Viewer set!");
+        }
+      else if( snCounter==3 && HistologyNodeName == "NO_IMAGE" )  //! strcmp(HistologyNodeName,"NO_IMAGE")
+        {
+        this->PrintText("HistologyNodeName bad");
+        this->PrintText(HistologyNodeName);
+        }
+      //insert fit to background here,(maybe use fov in the per scene node lookup.
+      //
+      
+      //     void qMRMLSliceControllerWidget::setSliceLogic(vtkMRMLSliceLogic * newSliceLogic)
+      if (snCounter !=3 )
+        {
+      //vtkSmartPointer<vtkMRMLSliceLogic>::New();
+      //currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+      vtkMRMLNode * sl = NULL;
+      vtkMRMLSliceLogic * sliceLogic = NULL;
+      //currentScene->InitTraversal();
+      // there is no slice logic until we load our histology slice.
+      //sl = currentScene->GetNextNodeByClass("vtkMRMLSLiceLogic");
+
+      qSlicerApplication *        s_app_obj = qSlicerApplication::application(); //set application linking.
+      // vtkMRMLApplicationLogic *mrmlAppLogic = s_app_obj->LayoutManagerGetMRMLApplicationLogic();
+      // vtkMRMLScene* currentScene = this->mrmlScene();
+      
+      vtkMRMLApplicationLogic *mrmlAppLogic = this->logic()->GetMRMLApplicationLogic();
+      if (mrmlAppLogic )
+        {
+        sliceLogic = mrmlAppLogic->GetSliceLogic(sliceNode);
+        }
+      else 
+        {
+        this->PrintText("Failed to find slice logic");
+        }
+
+      if ( sliceLogic != NULL  ) 
+        {
+        this->PrintText("sliceLogic setNode");
+        sliceLogic->SetSliceNode(sliceNode);
+        this->PrintText("SliceLogic Interaction");
+        sliceLogic->StartSliceNodeInteraction(vtkMRMLSliceNode::ResetFieldOfViewFlag);
+        this->PrintText("SliceLogic FitSlice");
+        sliceLogic->FitSliceToAll();
+        this->PrintText("Slicenode UpdateMatricies");
+        sliceNode->UpdateMatrices();
+        this->PrintText("SliceLogic Interaction end");
+        sliceLogic->EndSliceNodeInteraction();
+        }
+      else 
+  	{
+        this->PrintText("Failed to set slice logic");
+        }
+      //sliceNode->sliceController->FitSliceToBackground();      
+      //fgsliceController->fitSlcieToBackground();% 
+        }   
+    
     else 
       { //we'll enter this code if we are on orthogonal or dual3d for the 3d volumes
       this->PrintText("SliceComposite bad:"+sliceCompositeNodeID+" could not downcast!");
@@ -624,7 +750,6 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
         }
       }
     }
-
   return;
 }
 
@@ -657,7 +782,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setSliceLogic(vtkMRMLSliceLogic * newS
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
-//  this->PrintMethod("SetSliceGeometry\n");
+//  this->PrintMethod("SetSliceGeometry");
   // get a reformat widget aimed at the yellow slice, read the current orientation of the yellow slice for the starting point. 
   // read the values for offest and angle
   // apply them to the reformat widget
@@ -667,7 +792,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
 
   // terribly specific to our case here, we're skipping the first image viewer.
   //  int snCounter;
-  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
+//  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
   vtkMRMLScene* currentScene = this->mrmlScene();
   currentScene->InitTraversal();
   currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
@@ -716,7 +841,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ResetTransform()
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);  
   vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New();
-  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
+//  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
   vtkMRMLScene* currentScene = this->mrmlScene();
   currentScene->InitTraversal();
   currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
@@ -761,7 +886,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
   
   // terribly specific to our case here, we're skipping the first image viewer.
   //  int snCounter;
-  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
+//  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
   vtkMRMLScene* currentScene = this->mrmlScene();
   currentScene->InitTraversal();
   currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.
@@ -810,51 +935,82 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliderRange(ctkSliderWidget * widge
   this->PrintMethod("SetSliderRange");
   if ( !widge ) 
     {
-    this->PrintText("bad widge, skipping set range.\n");
+    this->PrintText("bad widge, skipping set range.");
     return; 
     }
   if ( range.size()==2 ) 
     {
-    //this->PrintText("setMin\n");
+    //this->PrintText("setMin");
     //widge->setMinimum(range[0]);
     //  this->PrintText("setMax");
     //widge->setMaximum=(range[1]);
-    this->PrintText("setRan\n");
+    this->PrintText("setRan");
     widge->setRange(range[0],range[1]);
-//   this->PrintText("setTic\n");
+//   this->PrintText("setTic");
 //nope   widge->setTickInterval((range[1]-range[0])/256);
-//   this->PrintText("setPStep\n");
+//   this->PrintText("setPStep");
 //nope   widge->setPageStep((range[1]-range[0])/256);
-//   this->PrintText("setTicPos\n");
+//   this->PrintText("setTicPos");
 //have to use position type.   widge->setTickPosition((range[1]-range[0])/2);
-    this->PrintText("setSStep\n");
+    this->PrintText("setSStep");
     widge->setSingleStep((range[1]-range[0])/256);
     }
   return ;
 } // */
 // --------------------------------------------------------------------------
 //std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkImageData * node)
+std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliceFOV(vtkMRMLNode * node)
+{
+  this->PrintMethod("GetSliceFOV");
+  QTextStream test(stdout);  
+  std::vector<double> fov (3,0);
+  test << "\tSliceBounds init\n";
+  double sliceBounds[6] = {0, -1, 0, -1, 0, -1};//xmin,xmax,ymin,ymax,zmin,zmax
+  //double spacing[3] = {1, 1, 1 };
+
+  vtkMRMLScalarVolumeNode *  localNode = NULL;
+  test << "\tlocalNode init\n";
+  localNode = vtkMRMLScalarVolumeNode::SafeDownCast(node);
+  if ( localNode  == NULL ) 
+    this->PrintText("Error getting the volume node");
+  test << "\tlocalNode GetRASBounds\n";
+  localNode->GetRASBounds(sliceBounds);
+//  localNode->GetSpacing
+  fov[0]=abs(sliceBounds[0]-sliceBounds[1]);
+  fov[1]=abs(sliceBounds[2]-sliceBounds[3]);
+  fov[2]=abs(sliceBounds[4]-sliceBounds[5]);
+  test << "Returning fov \t";
+  for(int it=0;it<fov.size(); it++)
+    {
+    test<< fov[it] << " \t";
+    }
+  test << "\n";
+  return fov;
+}
+// --------------------------------------------------------------------------
+//std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkImageData * node)
 std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLNode * node)
 {
   this->PrintMethod("GetSliderRange");
-   std::vector<double> range (2,0);
-   range[0] = 0;
-   range[1] = 1;
+  std::vector<double> range (2,0);
+  range[0] = 0;
+  range[1] = 1;
 //   std::vector<double> xrange (2,0);
 //   std::vector<double> yrange (2,0);
 //   std::vector<double> zrange (2,0);
-   double sliceBounds[6] = {0, -1, 0, -1, 0, -1};//xmin,xmax,ymin,ymax,zmin,zmax
-   vtkMRMLScalarVolumeNode *  localNode = NULL;
-   localNode = vtkMRMLScalarVolumeNode::SafeDownCast(node);
-    localNode->GetRASBounds(sliceBounds);
-    range[0]=sliceBounds[0];
-    range[1]=sliceBounds[1];
-    QTextStream test(stdout);  
-    test << "Returning range \t";
-    for(int it=0;it<range.size(); it++)
-      {
-      test<< range[it] << " \t";
-      }
+  double sliceBounds[6] = {0, -1, 0, -1, 0, -1};//xmin,xmax,ymin,ymax,zmin,zmax
+  vtkMRMLScalarVolumeNode *  localNode = NULL;
+  localNode = vtkMRMLScalarVolumeNode::SafeDownCast(node);
+  localNode->GetRASBounds(sliceBounds);
+  range[0]=sliceBounds[0];
+  range[1]=sliceBounds[1];
+  QTextStream test(stdout);  
+  test << "Returning range \t";
+  for(int it=0;it<range.size(); it++)
+    {
+    test<< range[it] << " \t";
+    }
+  test << "\n";
 //   double * fov;
 //   double * spacing;
 //   int * dims ;
@@ -933,7 +1089,7 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRangeSlice(vtk
    }
   if ( sn != NULL ) 
     { 
-    this->PrintText("Node good, proceding\n");
+    this->PrintText("Node good, proceding");
     //THis slice logic stuff causes a timebomb crash, i cant figure out why
     //vtkMRMLSliceLogic * sliceLogic = 0;
     //sliceLogic=vtkMRMLSliceLogic::New();
@@ -988,7 +1144,7 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRangeSlice(vtk
          << "default," << range[0]<< ":"<< range[1] << " \n";
     range=yrange;
     }else { 
-  this->PrintText("Node bad failed to get range\n");
+  this->PrintText("Node bad failed to get range");
   }
   
 //*/
@@ -1053,8 +1209,7 @@ QStringList qSlicerCIVM_AdultRatPGRModuleWidget::SetLayout()  //QString layout
   //  qSlicerAppMainWindow main=
   //  vtkMRMLNode currentScene->GetNextNodeByClass("vtkMRMLLayoutNode")
   currentScene->InitTraversal();
-  vtkMRMLLayoutNode* sceneLayoutNode = vtkMRMLLayoutNode::SafeDownCast(
-								       currentScene->GetNextNodeByClass("vtkMRMLLayoutNode") );
+  vtkMRMLLayoutNode* sceneLayoutNode = vtkMRMLLayoutNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLLayoutNode") );
   QStringList sceneNodes;
    if ( this->Layout=="PGR")
     {

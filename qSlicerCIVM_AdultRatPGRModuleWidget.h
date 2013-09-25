@@ -57,6 +57,7 @@ public:
   QString ViewNodeContrast1;  // First viewers's contrast selection. 
   QString ViewNodeContrast2;  // Second viewers Contrast Selection.
   QStringList SceneNodes;     // list of nodes in the scene, this could probably be a protected variable.
+  QString HistologyNodeName;    // name ot the histology node.
   QString Layout;             //String name of the layout to use.
   QString DataPath;           //path to data set in the setup function, will have to be
   QString LabelPath;          //see datapath.
@@ -70,6 +71,7 @@ public:
   // double GetSliceOffsetValue(vtkMRMLode *);
   //  std::vector<double> GetSliderRange(vtkImageData * );
   std::vector<double> GetSliderRange(vtkMRMLNode * );
+  std::vector<double> GetSliceFOV(vtkMRMLNode * );
   std::vector<double> GetSliderRangeSlice(vtkMRMLNode * );
   void SetSliderRange(ctkSliderWidget * , std::vector<double>);
   void ResetTransform();
@@ -87,7 +89,7 @@ public:
   bool NodeExists(QString);   // checks scene for existing node with given name. Used in the build scene fucntion to avoid reloading data.
   QStringList GetContrasts();    // will look up all the checkboxes in contrasts group and make a qstringlist of values
   void SetViewNodeProperties(QString); //Sets the view properties for a given view node string
-  QString HistologySelectionDialog(); // runs the histology selection dialog.
+  void HistologySelectionDialog(); // runs the histology selection dialog.
   void SetSliceOffsetValue(double offset);
   void SetSliceGeometry(double angle);
   //  void trackSliceOffsetValue(double offset);
