@@ -20,6 +20,7 @@
 // MRMLWidgets includes
 #include <qMRMLSliceWidget.h>
 #include <qMRMLSliceControllerWidget.h>
+#include <qMRMLSliceView.h>
 
 // SlicerQt includes
 #include "qSlicerApplication.h"
@@ -37,30 +38,39 @@
 #include "vtkMRMLDisplayNode.h"
 #include "vtkMRMLSliceNode.h"
 #include "vtkMRMLSliceLogic.h"
+#include "vtkMRMLSliceLayerLogic.h"
 #include "vtkMRMLScalarVolumeNode.h"
-//#include <vtkImageData.h>
-
+#include <vtkImageData.h>
+#include <vtkMRMLColorNode.h>
+#include <vtkMRMLCrosshairNode.h>
+#include <vtkMRMLCrosshairDisplayableManager.h>
+#include <vtkMRMLSliceViewDisplayableManagerFactory.h>
 #include "vtkMRMLSliceCompositeNode.h"
 #include "vtkMRMLLayoutLogic.h"
-
+#include <vtkInteractorStyle.h>
+#include <vtkRenderWindowInteractor.h>
+#include <vtkInteractorObserver.h>
 #include <vtkCollection.h>
 #include <vtkSmartPointer.h>
 
+#include <ctkPimpl.h>
 #include <ctkSliderWidget.h>
+#include <ctkVTKSliceView.h>
 #include <vtkTransform.h>
 #include "vtkMRMLApplicationLogic.h"
+#include "vtkEventForwarderCommand.h"
 
 //-----------------------------------------------------------------------------
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class qSlicerCIVM_AdultRatPGRModuleWidgetPrivate: public Ui_qSlicerCIVM_AdultRatPGRModuleWidget
 {
 public:
-//  void sliceConnector(vtkMRMLNode *n, qSlicerLayoutManager *lm);
-//qSlicerCIVM_AdultRatPRGModuleWidget::
-//  void sliceConnector(vtkMRMLNode *n, qSlicerLayoutManager *layoutManager) ;
+  //  void sliceConnector(vtkMRMLNode *n, qSlicerLayoutManager *layoutManager) ;
   typedef std::map<vtkSmartPointer<vtkMRMLNode>, qMRMLViewControllerBar* > ControllerMapType;
   ControllerMapType ControllerMap;
+  QList<vtkInteractorObserver*> ObservedInteractorStyles;
   qSlicerCIVM_AdultRatPGRModuleWidgetPrivate();
+//  void sliceConnector(vtkMRMLNode *n, qSlicerLayoutManager
 };
 
 //-----------------------------------------------------------------------------
@@ -79,6 +89,7 @@ qSlicerCIVM_AdultRatPGRModuleWidget::qSlicerCIVM_AdultRatPGRModuleWidget(QWidget
   : Superclass( _parent )
   , d_ptr( new qSlicerCIVM_AdultRatPGRModuleWidgetPrivate )
 {
+
 }
 
 //-----------------------------------------------------------------------------
@@ -93,12 +104,13 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
 //  Q_Q(qSlicerCIVM_AdultRatPGRModuleWidget);
   d->setupUi(this);
   this->Superclass::setup();
-
+  // this->EventCallbackCommand->SetCallback(qSlicerCIVM_AdultRatPGRModuleWidget::Processevent);
   //this->SliceLogic = 0;
   // insert init and static data definitions here.
   this->Layout=QString("PGR");
   this->GalleryName="CIVM_AdultRatAtlas";
   this->CenterVolumeOnLoad=true;
+  this->Priority=2;
 //   double sliderPos[2];
 //   sliderPos[0]=0;
 //   sliderPos[1]=0;
@@ -130,6 +142,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   this->DataPattern  =QString("ptimepoint_average_contrast.nii");
   this->LabelPattern =QString("pndtimepoint_average_labels.nii");
   this->HistologyNodeName=QString("NO_IMAGE");
+  d->LabelInformation->setCollapsed(true);
   //Timepoint=80; using the same code as our time/contrast bit so we can switch between timepoints for more rapid testing.
   // see the buildscene function for the list of times allowed.
   ImageContrasts << "ad" << "adc" << "b0" << "dwi" << "fa" << "fa_color"  << "freq_16" << "gre_16" << "rd";
@@ -147,6 +160,8 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
 
   //insert button connections here.
   connect(d->HistologySelector,SIGNAL(clicked()),SLOT(HistologySelectionDialog()));
+  connect(d->BuildSceneButton,SIGNAL(clicked()),SLOT(BuildScene()));
+  connect(d->WatchMousePositionCheckBox,SIGNAL(clicked()),SLOT(SetMouseWatcherStatus()));
   //insert drop down connections here.
   connect(d->ComboBoxA,SIGNAL(currentIndexChanged(int)),SLOT(BuildScene()));
   connect(d->ComboBoxB,SIGNAL(currentIndexChanged(int)),SLOT(BuildScene()));
@@ -164,7 +179,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
 
 QStringList qSlicerCIVM_AdultRatPGRModuleWidget::GetContrasts()
 {
-  this->PrintMethod(QString("GetContrasts"));
+//  this->PrintMethod(QString("GetContrasts"));
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
 
   //forms comaseparated list of contrast strings
@@ -205,7 +220,7 @@ const char * qSlicerCIVM_AdultRatPGRModuleWidget::NodeID(QString nodeName)
       //this->PrintText("examined node "+nameTemp+"not the same as "+nodeName);
       }
     }
-  this->PrintText("Did not find "+nodeName+" in open nodes.");
+  this->PrintText("\tDid not find "+nodeName+" in open nodes.");
   return "";
 
 }
@@ -347,6 +362,11 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
   this->PrintMethod(QString("BuildScene"));
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget); //i think the Q_D line connects us back to our parent widget
     
+//   // get the index of the current column
+//   this->Superclass::mouseMoveEvent(e);
+//   QModelIndex index = indexAt(e->pos());
+  
+
   // last minute settings read
   /*
     QStringList timepointList = this->GetTimepoints();
@@ -378,134 +398,148 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
   //  QStringList labelFileList; //list of label files to load.
   //  QStringList labelPathList; //list of label files to load.
   QList <qSlicerIO::IOProperties> unloadedFiles; //container for the parameters of unloadedfiles.
+  bool loadMoreFiles=false;
   //DataPath
   //LabelPath
   //DataPattern (replace timepoint with numbers and contrast with abreviation)
   //LabelPattern(replace timepoint with numbers)
-
+  //save previous settings to be applied once data is loaded and positionned.
+  this->PosBackup=d->SliderSlice->value();
+  this->AngleBackup=d->SliderAngle->value();
+  this->Angle=0;
+  this->Pos=0;
+    {
+    QTextStream sout(stdout);
+    sout << "\tSaved position" << this->PosBackup << " Saved Angel" << this->AngleBackup <<"\n";
+    }
+    d->SliderSlice->reset();//setValue(0);//
+    d->SliderAngle->reset();//setValue(0);//
+    this->ResetTransform();
 ////
 // initialize scene
 ////
-  bool setSliceOrient=true;
-  // for set orientations use a cheat and use this array
-  QStringList orientationOverride;
-  orientationOverride  << "Sagittal" << "Axial" << "Axial" << "Axial"; 
-  // These are the correct orientations for PGR, However the data is not oriented correctly,
-  // so we'll override the override for now with following
-  orientationOverride.clear();
-  orientationOverride  << "Coronal" << "Sagittal" << "Sagittal" << "Axial";
+    bool setSliceOrient=true;
+    // for set orientations use a cheat and use this array
+    QStringList orientationOverride;
+    orientationOverride  << "Sagittal" << "Axial" << "Axial" << "Axial"; 
+    // These are the correct orientations for PGR, However the data is not oriented correctly,
+    // so we'll override the override for now with following
+    orientationOverride.clear();
+    orientationOverride  << "Coronal" << "Sagittal" << "Sagittal" << "Axial";
   
 
-  vtkMRMLScene* currentScene = this->mrmlScene();
-  currentScene->InitTraversal();
-  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout. Will probably fail if more than one layout is allowed. Oh well for now.
-  QStringList orthogonalOrientations;
-  orthogonalOrientations << "Axial"
-			 << "Sagittal"
-			 << "Coronal";
-  //build list of files to load.
-  for (int c=0;c<contrastList.size();c++)
-    {
-    for (int t=0;t<timepointList.size(); t++)
+    vtkMRMLScene* currentScene = this->mrmlScene();
+    currentScene->InitTraversal();
+    currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout. Will probably fail if more than one layout is allowed. Oh well for now.
+    QStringList orthogonalOrientations;
+    orthogonalOrientations << "Axial"
+                           << "Sagittal"
+                           << "Coronal";
+    //build list of files to load.
+    for (int c=0;c<contrastList.size();c++)
       {
-      qSlicerIO::IOProperties tParams; //temp params
-      // add data to file list
-      imageFile=DataPattern;
-      if(this->GalleryName=="CIVM_AdultRatAtlas")
+      for (int t=0;t<timepointList.size(); t++)
         {
-        imageFile.replace("timepoint",timepointList[t]);
-        imageFile.replace("contrast",contrastList[c]);
-        //confusingly DataPath is root to data directories
-        imagePath = DataPath+imageFile;
-        imagePath.replace("timepoint",timepointList[t]);
-        nodeName=imageFile;
-        nodeName.replace(".nii","");
-        tParams["fileName"]       = imagePath;
-        tParams["nodeName"]       = nodeName;
-        tParams["labelmap"]       = false;
-        tParams["center"]         = this->CenterVolumeOnLoad;
-        tParams["autoWindowLevel"]= false;
-        tParams["fileType"]       = "VolumeFile";
-        labelFile=LabelPattern;
-        labelFile.replace("timepoint",timepointList[t]);
-        //confusingly LabelPath is root to label root
-        labelPath = LabelPath+labelFile;
-        labelNode=labelFile;
-        labelNode.replace(".nii","");
-        tParams["labelNode"]      = labelNode; //will end up as duplicate of nodeName in the labelProperties entries, but this is easier.
-        imageProperties << tParams;
-        this->PrintText("imageProperties << "+imageFile);
-        this->PrintText("Added volume to load list:"+imagePath);
-        if( LoadLabels )
+        qSlicerIO::IOProperties tParams; //temp params
+        // add data to file list
+        imageFile=DataPattern;
+        if(this->GalleryName=="CIVM_AdultRatAtlas")
           {
-          nodeName                   = labelNode;
-          tParams["fileName"]        = labelPath;
-          tParams["nodeName"]        = nodeName;
-          tParams["labelmap"]        = true;
-          tParams["center"]          = this->CenterVolumeOnLoad;
-          tParams["autoWindowLevel"] = false;
-          labelProperties << tParams;
-          this->PrintText("labelProperties << "+labelFile);
-          this->PrintText("Added labels to load list:"+labelPath);
-          }
-        }
-      else 
-        {
-        this->PrintText("Bad or unset GalleryName.");
-        return;
-        }
-      }//timepoint foor loop end
-    }//contrast timepoint loop end.
-
-  int snCounter;// this is for scene nodes later but right now its for any image we want loaded.
-  //loop for all images to add only unloaded to load list
-  for(snCounter=0;snCounter<imageProperties.size();snCounter++)
-    {
-    if ( ! NodeExists(imageProperties[snCounter]["nodeName"].toString()) )
-      {
-      unloadedFiles << imageProperties[snCounter];
-      } 
-    }
-  //loop for all labels to add only unloaded to load list need to do a unique element on this list... (bleh), the qset might do the trick
-  QSet<QString> labelNodes;
-  for(snCounter=0;snCounter<labelProperties.size();snCounter++)
-    {
-    if ( ! NodeExists(labelProperties[snCounter]["nodeName"].toString()) )
-      {
-      this->PrintText("-");
-      if( labelNodes.isEmpty() ) 
-        {
-        this->PrintText(" +");
-        unloadedFiles << labelProperties[snCounter];
-        labelNodes << labelProperties[snCounter]["nodeName"].toString(); 
-        } 
-      else 
-        {
-        this->PrintText("-- ");
-        if( ! labelNodes.contains(labelProperties[snCounter]["nodeName"].toString()) ) 
-          {
-          this->PrintText("adding "+labelProperties[snCounter]["nodeName"].toString()+"to loadlist");
-          unloadedFiles << labelProperties[snCounter];
-          labelNodes << labelProperties[snCounter]["nodeName"].toString();
+          imageFile.replace("timepoint",timepointList[t]);
+          imageFile.replace("contrast",contrastList[c]);
+          //confusingly DataPath is root to data directories
+          imagePath = DataPath+imageFile;
+          imagePath.replace("timepoint",timepointList[t]);
+          nodeName=imageFile;
+          nodeName.replace(".nii","");
+          tParams["fileName"]       = imagePath;
+          tParams["nodeName"]       = nodeName;
+          tParams["labelmap"]       = false;
+          tParams["center"]         = this->CenterVolumeOnLoad;
+          tParams["autoWindowLevel"]= false;
+          tParams["fileType"]       = "VolumeFile";
+          labelFile=LabelPattern;
+          labelFile.replace("timepoint",timepointList[t]);
+          //confusingly LabelPath is root to label root
+          labelPath = LabelPath+labelFile;
+          labelNode=labelFile;
+          labelNode.replace(".nii","");
+          tParams["labelNode"]      = labelNode; //will end up as duplicate of nodeName in the labelProperties entries, but this is easier.
+          imageProperties << tParams;
+          this->PrintText("\timageProperties << "+imageFile);
+          this->PrintText("\t  Added volume to load list:"+imagePath);
+          if( LoadLabels )
+            {
+            nodeName                   = labelNode;
+            tParams["fileName"]        = labelPath;
+            tParams["nodeName"]        = nodeName;
+            tParams["labelmap"]        = true;
+            tParams["center"]          = this->CenterVolumeOnLoad;
+            tParams["autoWindowLevel"] = false;
+            labelProperties << tParams;
+            this->PrintText("\tlabelProperties << "+labelFile);
+            this->PrintText("  Added labels to load list:"+labelPath);
+            }
           }
         else 
           {
-          this->PrintText("  XXXXXX");
+          this->PrintText("Bad or unset GalleryName.");
+          return;
+          }
+        }//timepoint foor loop end
+      }//contrast timepoint loop end.
+
+    int snCounter;// this is for scene nodes later but right now its for any image we want loaded.
+    //loop for all images to add only unloaded to load list
+    for(snCounter=0;snCounter<imageProperties.size();snCounter++)
+      {
+      if ( ! NodeExists(imageProperties[snCounter]["nodeName"].toString()) )
+        {
+        unloadedFiles << imageProperties[snCounter];
+        loadMoreFiles=true;
+        } 
+      }
+    //loop for all labels to add only unloaded to load list need to do a unique element on this list... (bleh), the qset might do the trick
+    QSet<QString> labelNodes;
+    for(snCounter=0;snCounter<labelProperties.size();snCounter++)
+      {
+      if ( ! NodeExists(labelProperties[snCounter]["nodeName"].toString()) )
+        {
+        //this->PrintText("-");
+        if( labelNodes.isEmpty() ) 
+          {
+          //this->PrintText(" +");
+          unloadedFiles << labelProperties[snCounter];
+          labelNodes << labelProperties[snCounter]["nodeName"].toString(); 
+          loadMoreFiles=true;
+          } 
+        else 
+          {
+          //this->PrintText("-- ");
+          if( ! labelNodes.contains(labelProperties[snCounter]["nodeName"].toString()) ) 
+            {
+            this->PrintText("\tadding "+labelProperties[snCounter]["nodeName"].toString()+"to loadlist");
+            unloadedFiles << labelProperties[snCounter];
+            labelNodes << labelProperties[snCounter]["nodeName"].toString();
+            loadMoreFiles=true;
+            }
+          else 
+            {
+            //this->PrintText("  XXXXXX");
+            }
           }
         }
+      else 
+        {
+        this->PrintText("\tFound label"+labelProperties[snCounter]["nodeName"].toString());
+        }
       }
-    else 
+    //load data
+    qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
+    if ( loadMoreFiles ) 
       {
-      this->PrintText("Found label"+labelProperties[snCounter]["nodeName"].toString());
+      s_app_obj->coreIOManager()->loadNodes(unloadedFiles); // images
       }
-    }
-
-  //load data
-  d->SliderSlice->reset();//setValue(0);//
-  d->SliderAngle->reset();//setValue(0);//
-  this->ResetTransform();
-  qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
-  s_app_obj->coreIOManager()->loadNodes(unloadedFiles); // images
 //  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
 
 //   if (sliceNode !=NULL && snCounter>0 && snCounter<3) 
@@ -521,105 +555,111 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
 //     { 
 //     this->PrintText("Skipped Setting range!");
 //     }
-  
-  ////
-  //arrange objects.
-  ////
-  //assign slices
-  //assign 3d windows, 
-  //for now just set properties in 3d views, rather than setting the volume settings.
-  snCounter=0;
-  int imCounter;
+    ////
+    //arrange objects.
+    ////
+    //assign slices
+    //assign 3d windows, 
+    //for now just set properties in 3d views, rather than setting the volume settings.
+    snCounter=0;
+    int imCounter;
+    this->PrintText("\tArranging");
 //for (snCounter=SceneNodes.size();snCounter>=0;snCounter--) 
-  for (snCounter=0;snCounter<SceneNodes.size();snCounter++) 
-    {
-    imCounter=floor(snCounter/2);
-    // pick out the scene node pointer to work on.    
-    QString sliceNodeID=QString("vtkMRMLSliceNode")+SceneNodes[snCounter];
-    QString viewNodeID =QString("vtkMRMLViewNode") +SceneNodes[snCounter];
-    QString sliceCompositeNodeID=QString("vtkMRMLSliceCompositeNode")+SceneNodes[snCounter];
-    vtkMRMLNode      *sn        = currentScene->GetNodeByID(sliceNodeID.toStdString());
-    vtkMRMLSliceNode *sliceNode = NULL;
-    if ( sn != NULL ) 
+    for (snCounter=0;snCounter<SceneNodes.size();snCounter++) 
       {
-      sliceNode = vtkMRMLSliceNode::SafeDownCast(sn); //SliceNode
-      } 
-    else 
-      {
-      this->PrintText("Bad slice node or no slice node for SceneNode: "+sliceNodeID);
-      }
-    vtkMRMLNode      *scn       = currentScene->GetNodeByID(sliceCompositeNodeID.toStdString());
-    vtkMRMLSliceCompositeNode *scNode = NULL;
-    if ( scn != NULL )//node existed try to downcast
-      {
-      scNode = vtkMRMLSliceCompositeNode::SafeDownCast(scn); //Composite
-      } 
-    else 
-      { 
-      this->PrintText("Bad composite node or no composite node for SceneNode"+sliceCompositeNodeID);
-      }
-    if ( scNode != NULL )  
-      //if we have a composinte node sucessfully downcast to assign volumes to
-      { //check vtkMRMLSliceCompositeNode good
-      //<>//
-      this->PrintText("SliceComposite ready:"+sliceCompositeNodeID);
-      //set default orientations according to slicer rules.
-      if(SceneNodes.size()==orthogonalOrientations.size() && snCounter<orthogonalOrientations.size() )
+      imCounter=floor(snCounter/2);
+      // pick out the scene node pointer to work on.    
+      QString sliceNodeID=QString("vtkMRMLSliceNode")+SceneNodes[snCounter];
+      QString viewNodeID =QString("vtkMRMLViewNode") +SceneNodes[snCounter];
+      QString sliceCompositeNodeID=QString("vtkMRMLSliceCompositeNode")+SceneNodes[snCounter];
+      vtkMRMLNode      *sn        = currentScene->GetNodeByID(sliceNodeID.toStdString());
+      vtkMRMLSliceNode *sliceNode = NULL;
+      if ( sn != NULL ) 
         {
-        this->PrintText("Setting default orientation");
-        sliceNode->SetOrientation(orthogonalOrientations[snCounter].toLatin1());
-        }
+        sliceNode = vtkMRMLSliceNode::SafeDownCast(sn); //SliceNode
+        } 
       else 
         {
-        this->PrintText("No default orientaion");
+        this->PrintText("Bad slice node or no slice node for SceneNode: "+sliceNodeID);
         }
-      // if specific orientations are desired clean up by setting them now. 
-      if(setSliceOrient) 
+      vtkMRMLNode      *scn       = currentScene->GetNodeByID(sliceCompositeNodeID.toStdString());
+      vtkMRMLSliceCompositeNode *scNode = NULL;
+      if ( scn != NULL )//node existed try to downcast
         {
-        this->PrintText("Setting override orientation");
-        sliceNode->SetOrientation(orientationOverride[snCounter].toLatin1());
-        sliceNode->SetOrientationToReformat();
-        }
+        scNode = vtkMRMLSliceCompositeNode::SafeDownCast(scn); //Composite
+        } 
       else 
-        {
-        this->PrintText("No orientation override. Not setting.");
-        }
-      if( LoadLabels )
         { 
-        this->PrintText("SetLabelVolumeID:"+labelProperties[imCounter]["nodeName"].toString());
-        scNode->SetLabelVolumeID(this->NodeID(labelProperties[imCounter]["nodeName"].toString()));	//set labels
-        scNode->SetLabelOpacity(1); 
-        sliceNode->SetUseLabelOutline(true);
+        this->PrintText("Bad composite node or no composite node for SceneNode"+sliceCompositeNodeID);
         }
-      else 
-        {
-        this->PrintText("LabelID=NULL");
-        scNode->SetLabelVolumeID(NULL);
-        }
-      //specific viewer settings
-      if( snCounter==0 || snCounter==1 || snCounter==2 )
-        {  //! strcmp(HistologyNodeName,"NO_IMAGE")
-        if(imCounter<imageProperties.size()) //prevents bad index crash
+      if ( scNode != NULL )  
+        //if we have a composinte node sucessfully downcast to assign volumes to
+        { //check vtkMRMLSliceCompositeNode good
+        //<>//
+        this->PrintText("\tSliceComposite ready:"+sliceCompositeNodeID);
+        //set default orientations according to slicer rules.
+        if(SceneNodes.size()==orthogonalOrientations.size() && snCounter<orthogonalOrientations.size() )
           {
-          this->PrintText("SetBackgroundVolumeID:"+imageProperties[imCounter]["nodeName"].toString());
-          scNode->SetBackgroundVolumeID(this->NodeID(imageProperties[imCounter]["nodeName"].toString())); //set image
-          //scNode->SetaAnnotationSpcae();
+//        this->PrintText("Setting default orientation");
+          sliceNode->SetOrientation(orthogonalOrientations[snCounter].toLatin1());
           }
-        //get the range setting from the volumes.
-        currentScene->InitTraversal();
-        std::vector<double> range (2,0);
-        vtkMRMLNode * vNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
-        while( vNode != NULL) // traverse volume nodes looking for the node we're currently assigning. 
+        else 
           {
-          if ( vNode->GetName() ==imageProperties[imCounter]["nodeName"] ) 
+//        this->PrintText("No default orientaion");
+          }
+        // if specific orientations are desired clean up by setting them now. 
+        if(setSliceOrient) 
+          {
+//        this->PrintText("\tSetting override orientation");
+          sliceNode->SetOrientation(orientationOverride[snCounter].toLatin1());
+          sliceNode->SetOrientationToReformat();
+          }
+        else 
+          {
+          this->PrintText("\tNo orientation override. Not setting.");
+          }
+        if( LoadLabels )
+          { 
+          //this->PrintText("SetLabelVolumeID:"+labelProperties[imCounter]["nodeName"].toString());
+          scNode->SetLabelVolumeID(this->NodeID(labelProperties[imCounter]["nodeName"].toString()));	//set labels
+          scNode->SetLabelOpacity(1); 
+          sliceNode->SetUseLabelOutline(true);
+          }
+        else 
+          {
+          this->PrintText("LabelID=NULL");
+          scNode->SetLabelVolumeID(NULL);
+          }
+        //specific viewer settings
+        if( snCounter==0 || snCounter==1 || snCounter==2 )
+          {  //! strcmp(HistologyNodeName,"NO_IMAGE")
+           
+          if (snCounter==1||snCounter==2)
             {
-            //            this->PrintText("Getting range from current node.");//"+imageProperties[imCounter]["nodeName"]+"
-            range=this->GetSliderRange(vNode);
-	    //            this->PrintText("Setting range");
-            this->SetSliderRange(d->SliderSlice,range);
+            scNode->SetLinkedControl(1);
+            }
+
+          if(imCounter<imageProperties.size()) //prevents bad index crash
+            {
+            //this->PrintText("SetBackgroundVolumeID:"+imageProperties[imCounter]["nodeName"].toString());
+            scNode->SetBackgroundVolumeID(this->NodeID(imageProperties[imCounter]["nodeName"].toString())); //set image
+            //scNode->SetaAnnotationSpcae();
+            }
+          //get the range setting from the volumes.
+          currentScene->InitTraversal();
+          std::vector<double> range (2,0);
+          vtkMRMLNode * vNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+          while( vNode != NULL) // traverse volume nodes looking for the node we're currently assigning. 
+            {
+            if ( vNode->GetName() ==imageProperties[imCounter]["nodeName"] ) 
+              {
+              //            this->PrintText("Getting range from current node.");//"+imageProperties[imCounter]["nodeName"]+"
+              range=this->GetSliderRange(vNode);
+              //            this->PrintText("Setting range");
+              this->SetSliderRange(d->SliderSlice,range);
 //             if ( snCounter !=0 ) 
 //               {
-//               scNode->SetLinkedControl(1);
+
 //               this->PrintText("Getting Slice FOV");
 //               std::vector<double> sliceFov ( 3,0);
 //               sliceFov=this->GetSliceFOV(vNode); //gets volume bounds, and uses that to set slice fov.
@@ -632,9 +672,9 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
 //               std::vector<double> origin (3,0);
 //               sliceNode->SetXYZOrigin(origin[0],origin[1],origin[2]);
 //               }
+              }
+            vNode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
             }
-          vNode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
-          }
 //         currentScene->InitTraversal();
 //         vtkMRMLNode * volNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
 //         while( volNode != NULL) // traverse volume nodes looking for the node we're currently assigning. 
@@ -650,17 +690,17 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
 //             }
 //           volNode=currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
 //           }
-        //<<.>>//
-        if (snCounter==1 ) 
-          { // && snCounter<3) // only turn on visiblilty on slicenode yellow, to give yellow slice indicator in the sagital view
-          scNode->SetSliceIntersectionVisibility(1);
+          //<<.>>//
+          if (snCounter==1 ) 
+            { // && snCounter<3) // only turn on visiblilty on slicenode yellow, to give yellow slice indicator in the sagital view
+            scNode->SetSliceIntersectionVisibility(1);
+            }
           }
-        }
-      else if( snCounter==3 && HistologyNodeName != "NO_IMAGE" )  //! strcmp(HistologyNodeName,"NO_IMAGE")
-        {
-        this->PrintText("HistologyNodeName Good");
-        scNode->SetBackgroundVolumeID(this->NodeID(HistologyNodeName)); //set image
-        //scNode->SetLinkedControl(0);
+        else if( snCounter==3 && HistologyNodeName != "NO_IMAGE" )  //! strcmp(HistologyNodeName,"NO_IMAGE")
+          {
+//        this->PrintText("HistologyNodeName Good");
+          scNode->SetBackgroundVolumeID(this->NodeID(HistologyNodeName)); //set image
+          //scNode->SetLinkedControl(0);
 //         currentScene->InitTraversal();
 //         vtkMRMLNode * vNode = currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
 //         while( vNode != NULL) // traverse volume nodes looking for the node we're currently assigning. 
@@ -675,7 +715,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
 //             sliceNode->SetXYZOrigin(origin[0],origin[1],origin[2]);
 //             }
           }        
-        this->PrintText("Histology Viewer set!");
+//        this->PrintText("Histology Viewer set!");
         }
       else if( snCounter==3 && HistologyNodeName == "NO_IMAGE" )  //! strcmp(HistologyNodeName,"NO_IMAGE")
         {
@@ -688,69 +728,88 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
       //     void qMRMLSliceControllerWidget::setSliceLogic(vtkMRMLSliceLogic * newSliceLogic)
       if (snCounter !=3 )
         {
-      //vtkSmartPointer<vtkMRMLSliceLogic>::New();
-      //currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
-      vtkMRMLNode * sl = NULL;
-      vtkMRMLSliceLogic * sliceLogic = NULL;
-      //currentScene->InitTraversal();
-      // there is no slice logic until we load our histology slice.
-      //sl = currentScene->GetNextNodeByClass("vtkMRMLSLiceLogic");
+        //vtkSmartPointer<vtkMRMLSliceLogic>::New();
+        //currentScene->GetNextNodeByClass("vtkMRMLScalarVolumeNode"); 
+        vtkMRMLNode * sl = NULL;
+        vtkMRMLSliceLogic * sliceLogic = NULL;
+        //currentScene->InitTraversal();
+        // there is no slice logic until we load our histology slice.
+        //sl = currentScene->GetNextNodeByClass("vtkMRMLSLiceLogic");
 
-      qSlicerApplication *        s_app_obj = qSlicerApplication::application(); //set application linking.
-      // vtkMRMLApplicationLogic *mrmlAppLogic = s_app_obj->LayoutManagerGetMRMLApplicationLogic();
-      // vtkMRMLScene* currentScene = this->mrmlScene();
+        // qSlicerApplication *        s_app_obj = qSlicerApplication::application(); //set application linking.
+        // vtkMRMLApplicationLogic *mrmlAppLogic = s_app_obj->LayoutManager()->GetMRMLApplicationLogic();
+        // vtkMRMLScene* currentScene = this->mrmlScene();
       
-      vtkMRMLApplicationLogic *mrmlAppLogic = this->logic()->GetMRMLApplicationLogic();
-      if (mrmlAppLogic )
-        {
-        sliceLogic = mrmlAppLogic->GetSliceLogic(sliceNode);
-        }
-      else 
-        {
-        this->PrintText("Failed to find slice logic");
-        }
+        vtkMRMLApplicationLogic *mrmlAppLogic = this->logic()->GetMRMLApplicationLogic();
+        if (mrmlAppLogic )
+          {
+          sliceLogic = mrmlAppLogic->GetSliceLogic(sliceNode);
+          }
+        else 
+          {
+          this->PrintText("Failed to find slice logic");
+          }
 
-      if ( sliceLogic != NULL  ) 
-        {
-        this->PrintText("sliceLogic setNode");
-        sliceLogic->SetSliceNode(sliceNode);
-        this->PrintText("SliceLogic Interaction");
-        sliceLogic->StartSliceNodeInteraction(vtkMRMLSliceNode::ResetFieldOfViewFlag);
-        this->PrintText("SliceLogic FitSlice");
-        sliceLogic->FitSliceToAll();
-        this->PrintText("Slicenode UpdateMatricies");
-        sliceNode->UpdateMatrices();
-        this->PrintText("SliceLogic Interaction end");
-        sliceLogic->EndSliceNodeInteraction();
-        }
-      else 
-  	{
-        this->PrintText("Failed to set slice logic");
-        }
-      //sliceNode->sliceController->FitSliceToBackground();      
-      //fgsliceController->fitSlcieToBackground();% 
+        if ( sliceLogic != NULL  ) 
+          {
+//        this->PrintText("sliceLogic setNode");
+          sliceLogic->SetSliceNode(sliceNode);
+//        this->PrintText("SliceLogic Interaction");
+          sliceLogic->StartSliceNodeInteraction(vtkMRMLSliceNode::ResetFieldOfViewFlag);
+//        this->PrintText("SliceLogic FitSlice");
+
+            sliceLogic->FitSliceToAll();
+//           if (loadMoreFiles) 
+//             {
+//             }
+//        this->PrintText("Slicenode UpdateMatricies");
+          sliceNode->UpdateMatrices();
+//        this->PrintText("SliceLogic Interaction end");
+          sliceLogic->EndSliceNodeInteraction();
+          }
+        else 
+          {
+          this->PrintText("Failed to set slice logic");
+          }
+        //sliceNode->sliceController->FitSliceToBackground();      
+        //fgsliceController->fitSlcieToBackground();% 
         }   
     
-    else 
-      { //we'll enter this code if we are on orthogonal or dual3d for the 3d volumes
-      this->PrintText("SliceComposite bad:"+sliceCompositeNodeID+" could not downcast!");
-      }
-    if (sn == NULL ) 
-      { 
-      vtkMRMLNode     *vn       = currentScene->GetNodeByID(viewNodeID.toStdString());
-//    vtkMRMLViewNode *vNode;
-      if ( vn != NULL && this->Layout=="Dual3D" )
-        {
-//      vNode = vtkMRMLViewNode::SafeDownCast(vn); //Composite
-        this->SetViewNodeProperties(viewNodeID);
-        } 
-      else
-        {
-        this->PrintText("Bad view node or not a view node:"+viewNodeID);
+      else 
+        { //we'll enter this code if we are on orthogonal or dual3d for the 3d volumes
+        //this->PrintText("SliceComposite bad:"+sliceCompositeNodeID+" could not downcast!");
         }
+      if (sn == NULL ) 
+        { 
+        vtkMRMLNode     *vn       = currentScene->GetNodeByID(viewNodeID.toStdString());
+//    vtkMRMLViewNode *vNode;
+        if ( vn != NULL && this->Layout=="Dual3D" )
+          {
+//      vNode = vtkMRMLViewNode::SafeDownCast(vn); //Composite
+          this->SetViewNodeProperties(viewNodeID);
+          } 
+        else
+          {
+          this->PrintText("Bad view node or not a view node:"+viewNodeID);
+          }
+        }
+      } // end scenenode set up viewer loop,
+
+// set angel and posotion sliders back, then apply values.
+      { 
+      QTextStream sout(stdout);
+      sout << "Restoring position" << this->PosBackup << " Restoring Angel" << this->AngleBackup <<"\n"; //this->Angle
       }
-    }
-  return;
+
+      this->Pos=0;
+      this->Angle=0;
+      d->SliderSlice->setValue(this->PosBackup);
+      d->SliderAngle->setValue(this->AngleBackup);
+        { 
+        QTextStream sout(stdout);
+        sout << "Restored position" << d->SliderSlice->value() << " Restoring Angle" << d->SliderAngle->value()<<"\n"; //this->Angle
+        }
+        return;
 }
 
 /*
@@ -778,11 +837,11 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setSliceLogic(vtkMRMLSliceLogic * newS
 */
 
 
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
-//  this->PrintMethod("SetSliceGeometry");
+  //this->PrintMethod("SetSliceGeometry");
   // get a reformat widget aimed at the yellow slice, read the current orientation of the yellow slice for the starting point. 
   // read the values for offest and angle
   // apply them to the reformat widget
@@ -823,8 +882,6 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
 //         test << "Last:"<< Angle[snCounter]
 //              << " next:"<< d->SliderAngle->value() 
 //              << " diff:" << Angle[snCounter]-d->SliderAngle->value() << "\n" ;
-//         transform->RotateX(this->Angle[snCounter]-d->SliderAngle->value()); //rotation-d->LastRotationValues[axisX]
-//         Angle[snCounter]=d->SliderAngle->value();
 
         transform->RotateX(this->Angle-d->SliderAngle->value()); //rotation-d->LastRotationValues[axisX]
         sliceNode->GetSliceToRAS()->DeepCopy(transform->GetMatrix());
@@ -833,10 +890,690 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceGeometry(double value)
         } //endslicenode null check
       }// end sn null check
     }// end for
-  Angle=d->SliderAngle->value();
+  this->Angle=d->SliderAngle->value();
+  return;
+}
+//------------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);  
+  this->PrintMethod("SetMouseWatcherStatus");
+  QTextStream test(stdout);  
+  bool status=d->WatchMousePositionCheckBox->isChecked();
+  qSlicerApplication *        s_app_obj = qSlicerApplication::application(); //set application linking.
+  qSlicerLayoutManager *  layoutManager = s_app_obj->layoutManager();
+
+
+  QList<vtkInteractorObserver*> interactorStyles;
+  foreach(const QString& sliceViewName, layoutManager->sliceViewNames())
+    {
+    qMRMLSliceWidget * sliceWidget = layoutManager->sliceWidget(sliceViewName);
+    Q_ASSERT(sliceWidget);
+    interactorStyles << sliceWidget->sliceView()->interactorStyle();
+    }
+
+
+  if ( ! status )
+    {
+    this->PrintText("Disconnect");
+    // Remove observers
+    foreach(vtkInteractorObserver * observedInteractorStyle, d->ObservedInteractorStyles)
+      {
+      foreach(int event, QList<int>()
+              << vtkCommand::MouseMoveEvent << vtkCommand::EnterEvent << vtkCommand::LeaveEvent)
+        {
+        qvtkDisconnect(observedInteractorStyle, event,
+                       this, SLOT(ProcessEvent(vtkObject*,void*,ulong,void*)));
+        }
+      }
+    d->ObservedInteractorStyles.clear();
+    }
+  else
+    {
+
+    // Add observers
+    foreach(vtkInteractorObserver * interactorStyle, interactorStyles)
+      {
+      foreach(int event, QList<int>()
+              << vtkCommand::MouseMoveEvent << vtkCommand::EnterEvent << vtkCommand::LeaveEvent)
+        {
+        this->PrintText("Connect");
+        qvtkConnect(interactorStyle, event,
+                    this, SLOT(ProcessEvent(vtkObject*,void*,ulong,void*)));
+        }
+      d->ObservedInteractorStyles << interactorStyle;
+      }
+    }  
+  this->PrintText("SetMouseWatcherSuccess");
   return;
 }
 
+//------------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus_old()
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);  
+  this->PrintMethod("SetMouseWatcherStatus_old");
+  QTextStream test(stdout);  
+  bool status=d->WatchMousePositionCheckBox->isChecked();
+
+  vtkMRMLScene* currentScene = this->mrmlScene();
+  currentScene->InitTraversal();
+  vtkMRMLCrosshairNode  * cNode = NULL;
+  vtkMRMLSliceNode      * sliceNode = NULL;
+  qMRMLSliceWidget      * sliceWidget = NULL;
+  const qMRMLSliceView  * sliceView = NULL;
+  vtkMRMLSliceLogic     * sliceLogic = NULL;
+  const char            * sliceNodeName = NULL;
+  vtkRenderWindowInteractor * interactor = NULL;
+  qSlicerApplication    * s_app_obj = qSlicerApplication::application(); //set application linking.
+  qSlicerLayoutManager  * layoutManager =s_app_obj->layoutManager();
+  int numberCrosshairNodes = 0; 
+  numberCrosshairNodes = currentScene->GetNumberOfNodesByClass("vtkMRMLCrosshairNode");
+  if (numberCrosshairNodes == 0 ) 
+    {
+    this->PrintText("No crosshair nodes found");
+    d->WatchMousePositionCheckBox->setChecked(false);
+    return;
+    } 
+  else
+    {
+    cNode = vtkMRMLCrosshairNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLCrosshairNode"));
+    test << "Number of crosshair nodes :" << numberCrosshairNodes << "\n";
+    }
+  int numberSliceNodes = 0; 
+  numberSliceNodes     = currentScene->GetNumberOfNodesByClass("vtkMRMLSliceNode");
+  if(numberSliceNodes == 0) 
+    {
+    this->PrintText("No slice nodes found");
+    d->WatchMousePositionCheckBox->setChecked(false);
+    return;
+    } 
+  else
+    {
+    test << "Number of slice nodes :" << numberSliceNodes << "\n";
+    }
+
+  if(status) 
+    {  
+    if ( cNode ) 
+      {
+    //   QStringList observeEvents ;
+    //   observeEvents << "MouseMoveEvent" << "EnterEvent" <<  "LeaveEvent" <<"ModifiedEvent";
+    //   for (int e_idx=0;e_idx<observeEvents.size();e_idx++)
+    //     {
+    // //   tag = style.AddObserver(event, self.processEvent, self.priority)
+    // //     self.styleObserverTags.append([style,tag])
+    // //     tag = sliceNode.AddObserver(observeEvents[e_idx], this->LabelAtPosition(), 2)
+    //     interactor->AddObserver(observeEvents[e_idx], this->LabelAtPosition(sliceNode,observeEvents[e_idx]), 0.0);
+    //     }
+    // //
+    //  for event in events:
+    //     self.styleObserverTags.append([sliceNode,tag])
+    //       vtkMRMLCrosshairDisplayableManager *cmgr =
+    //         vtkMRMLCrosshairDisplayableManager::SafeDownCast(
+    //           d->DisplayableManagerGroup->GetDisplayableManagerByClassName(
+    //             "vtkMRMLCrosshairDisplayableManager"));
+    //       if (cmgr) 
+    //         {
+    //      connect(cmgr->OnInteractorEvent(),SIGNAL(),SLOT(LabelAtPosition()))
+    //         }
+    //    GetNextNodeByClass("vtkMRMLCrosshairDisplayableManager");
+    //     this->InitialCrosshairThickness=cNode->GetCrosshairThickness();
+      cNode->SetCrosshairToFine();    
+    //     connect(cmgr->OnInteractorEvent(),SIGNAL(),SLOT(LabelAtPosition()))
+    //    connect(d->OnInteractionEvent(),SIGNAL(convertRASToXYZ(QList<double> ),SLOT(LabelAtPosition());
+    //connect(d->WatchMousePositionCheckBox,SIGNAL(toggled(bool)),SLOT(EnabelMouseWatcher(bool)));
+    //connect(d->mouse.moved,SIGNAL(mouse.position(pos)),SLOT(LabelAtPosition());
+    //cNode->vtkMRMLCrosshairDisplayableManager::AddInteractorObservableEvent(vtkCommand::MouseMoveEvent, -1.0);
+      }
+    
+    for(int sNode=0;sNode<numberSliceNodes;sNode++) 
+      {
+      sliceNode = vtkMRMLSliceNode::SafeDownCast(currentScene->GetNthNodeByClass(sNode,"vtkMRMLSliceNode"));
+      if (! sliceNode) 
+        {
+        this->PrintText("Failed to get sliceNode from scene");
+        return;
+        }
+      else 
+        {
+        sliceNodeName = sliceNode->GetLayoutName();
+        test <<"sliceNodeName:" << sliceNodeName << "\n";
+        //sliceNode->AddObserver("ModifiedEvent",this->LabelAtPosition(sliceNode),2);// this is a copy of the python code yet it doesnt work.
+        }
+      }
+    if ( sliceNode )
+      {
+      sliceWidget = layoutManager->sliceWidget(sliceNode->GetLayoutName());
+      if ( sliceWidget )
+        {
+        sliceLogic = sliceWidget->sliceLogic();
+        //sliceView = sliceWidget->sliceView(); // not used 
+        //vtkRenderWindowInteractor * interactor = sliceView->interactor();
+        interactor = sliceWidget->sliceView()->interactor();
+        //const vtkInteractorObserver * interactorStyle = sliceView->interactorStyle(); //BUGGERS! this code works but that is not what we're looking for.
+        // this stuff works now....
+        //   vtkIndent  ident = vtkIndent::vtkIndent(0); 
+        //   if( interactor ) 
+        //     {
+        //       interactor->PrintSelf(cout,ident);
+        //     }
+        //   else
+        //     {
+        //     QTextStream test(stdout);  
+        //     test << "unable to set interactor";
+        //     }
+        
+        if ( interactor) 
+          {
+          
+//          unsigned long movetag = interactor->AddObserver("MouseMoveEvent",this->LabelAtPosition(),2.0);
+//           const char * event = "MouseMoveEvent";
+//           //vtkCommand::MouseMoveEvent
+//           ObserverTags.push_back( interactor->AddObserver(event,this->LabelAtPosition(cNode),2.0));
+          //ObserverTags.push_back( );
+          unsigned long tag = 0 ;
+          const char * event ;
+          event="MouseMoveEvent";
+//          tag = interactor->AddObserver(event,this->ProcessEvent( ),this->Priority);
+          //tag = interactor->AddObserver(vtk->vtkCommand-MouseMoveEvent,LabelAtPosition(),this->Priority);
+          int * xy = interactor->GetEventPosition();  
+          //   double * xy[2] = interactor->GetEventPosition();
+          //    double * xyz[3] = sliceWidget->sliceView()->convertDeviceToXYZ(xy);
+          //    double * ras[3] = sliceWidget->sliceView()->convertXYZToRAS(xyz);
+	    
+          //   double * xyz = sliceWidget->sliceView()->convertDeviceToXYZ(xy);
+          //   double * ras = sliceWidget->sliceView()->convertXYZToRAS(xyz);
+          //   double * xyz = sliceView->convertDeviceToXYZ(xy);
+          //   double * ras = sliceView->convertXYZToRAS(xyz);
+	    
+          //double * xyz = sliceView->convertDeviceToXYZ(xy);
+          //   double * ras = sliceView->convertXYZToRAS(xyz);
+          double init [3]= { 0,0,0 };
+          double * xyz = init;
+          double * ras = init;
+          //sliceNode->GetXYtoRAS()->MultiplyPoint(xyzw, rasw);
+          vtkMRMLAbstractSliceViewDisplayableManager::ConvertDeviceToXYZ(interactor, sliceNode, xy[0], xy[1], xyz);
+          vtkMRMLAbstractSliceViewDisplayableManager::ConvertXYZToRAS(sliceNode, xyz, ras);
+          test << "xyz:ras co-ordinates\n"
+               << xyz[0] << ":" << ras[0] << "\n"
+               << xyz[1] << ":" << ras[1] << "\n"
+               << xyz[2] << ":" << ras[2] << "\n";
+
+          //   //vtkRenderWindowInteractor * interactor = sliceView->interactor() ;
+          
+          }
+        else
+          {
+          this->PrintText("Failed to get interactor");
+          }
+
+        }
+      else
+        {
+        this->PrintText("Failed to get sliceWidget");
+        }
+      }
+    else
+      {
+      this->PrintText("Failed to get sliceNode");
+      }
+    }
+  else
+    {
+    if ( cNode ) 
+      {
+      //QObject::disconnect(receiver, SLOT(slot()));
+      //disconnect(d->mouse.moved(),'LabelAtPosition()');
+      //break connect...
+      //virtual void SetCrosshairThickness (int
+      //  cNode->SetCrosshairThickness (this->InitialCrosshairThickness);
+      }
+    }
+  return;
+}
+//-----------------------------------------------------------------------------
+qMRMLSliceWidget * qSlicerCIVM_AdultRatPGRModuleWidget::SlicerWidget(vtkInteractorObserver * interactorStyle) //const
+{
+  if (!qSlicerApplication::application()->layoutManager()) 
+    {
+    return 0;
+    }
+  foreach(const QString& sliceViewName, qSlicerApplication::application()->layoutManager()->sliceViewNames())
+    {
+    qMRMLSliceWidget * sliceWidget = qSlicerApplication::application()->layoutManager()->sliceWidget(sliceViewName);
+    Q_ASSERT(sliceWidget);
+    if (sliceWidget->sliceView()->interactorStyle() == interactorStyle)
+      {
+      return sliceWidget;
+      }
+    }
+  return 0;
+}
+//------------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* callData, unsigned long eventId, void* clientData) 
+ {
+   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
+//   Q_Q(qSlicerCIVM_AdultRatPGRModuleWidget);
+   this->PrintMethod("ProcessEvent");
+   Q_UNUSED(callData);
+   Q_UNUSED(clientData);
+
+   vtkInteractorObserver * interactorStyle = vtkInteractorObserver::SafeDownCast(sender);
+   if ( ! interactorStyle ) 
+     {
+     return;
+     }
+   Q_ASSERT(d->ObservedInteractorStyles.indexOf(interactorStyle) != -1);
+   vtkRenderWindowInteractor * interactor = interactorStyle->GetInteractor();
+   if(eventId == vtkCommand::EnterEvent || eventId == vtkCommand::MouseMoveEvent)
+     {
+     // Compute RAS
+     vtkInteractorObserver * interactorStyle = vtkInteractorObserver::SafeDownCast(sender);
+     Q_ASSERT(d->ObservedInteractorStyles.indexOf(interactorStyle) != -1);
+     //vtkRenderWindowInteractor * interactor = interactorStyle->GetInteractor();
+     int xy[2] = {-1, -1};
+     interactorStyle->GetInteractor()->GetEventPosition(xy);
+     
+//      vtkMRMLSliceNode * sliceNode = vtkMRMLSliceNode::SafeDownCast(currentScene->GetNthNodeByClass(sNode,"vtkMRMLSliceNode"));
+//      qMRMLSliceWidget * sliceWidget = layoutManager->sliceWidget(sliceNode->GetLayoutName());
+
+     //qMRMLSliceWidget * sliceWidget = d->SlicerWidget(interactorStyle);     
+     // be good to change this to a while.
+     qMRMLSliceWidget * sliceWidget = NULL;
+     foreach(const QString& sliceViewName, qSlicerApplication::application()->layoutManager()->sliceViewNames())
+       {
+       sliceWidget = qSlicerApplication::application()->layoutManager()->sliceWidget(sliceViewName);
+       //     Q_ASSERT(sliceWidget);
+       if ( !( sliceWidget->sliceView()->interactorStyle() == interactorStyle ))
+         {
+         sliceWidget = NULL; 
+         }
+       else 
+         {
+         //this->PrintText(sliceViewName);
+         break;
+         }
+       }     
+     if ( ! sliceWidget) 
+       {
+       this->PrintText("sliceWidget Fail! Found no slice widgets.");
+       }
+//     Q_ASSERT(sliceWidget);
+//      QList<double> xyz = sliceWidget->convertDeviceToXYZ(QList<int>() << xy[0] << xy[1]);
+//      QList<double> ras = sliceWidget->convertXYZToRAS(xyz);
+//      const qMRMLSliceView * sView = sliceWidget->sliceView();
+//      QList<double> xyz = sView->convertDeviceToXYZ(QList<int>() << xy[0] << xy[1]);
+//      QList<double> ras = sView->convertXYZToRAS(xyz);
+      //cNode = vtkMRMLCrosshairNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLCrosshairNode"));
+     
+//      QString displayableManager = QString("vtkMRMLCrosshairDisplayableManager");
+//      vtkMRMLSliceViewDisplayableManagerFactory* factory
+//        = vtkMRMLSliceViewDisplayableManagerFactory::GetInstance();
+//      factory->RegisterDisplayableManager(displayableManager.toLatin1());
+     this->mrmlScene()->InitTraversal();
+     vtkMRMLCrosshairDisplayableManager *cmgr = 
+       vtkMRMLCrosshairDisplayableManager::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairDisplayableManager"));
+     this->mrmlScene()->InitTraversal();
+      vtkMRMLCrosshairNode * cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
+//     vtkMRMLCrosshairNode * cNode  = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNodeByID("vtkMRMLCrosshairNodeDefault"));
+
+//      vtkMRMLCrosshairNode * cNode = NULL; 
+//      int numberCrosshairNodes = 0; 
+//      numberCrosshairNodes = this->mrmlScene()->GetNumberOfNodesByClass("vtkMRMLCrosshairNode");
+//      if (numberCrosshairNodes == 0 ) 
+//        {
+//        this->PrintText("No crosshair nodes found");
+//        d->WatchMousePositionCheckBox->setChecked(false);
+//        return;
+//        } 
+//      else
+//        {
+//        this->mrmlScene()->InitTraversal();
+//        cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
+//        QTextStream test(stdout);
+//        test << "Number of crosshair nodes :" << numberCrosshairNodes << "\n";
+//        }
+     
+
+//sliceWidget->sliceView()->DisplayableManagerGroup->GetDisplayableManagerByClassName(
+//  "vtkMRMLCrosshairDisplayableManager")
+     double xyz[3] = { 0,0,0 };
+     double ras[3] = { 0,0,0 };
+     if ( cmgr ) 
+       {
+       cmgr->ConvertDeviceToXYZ(xy[0], xy[1], xyz);
+       cmgr->ConvertXYZToRAS(xyz,ras);
+       }
+     else 
+       {
+
+       if ( cNode ) 
+         {
+         // cNode->ConvertDeviceToXYZ(xy[0], xy[1], xyz);
+         // cNode->ConvertXYZToRAS(xyz,ras);
+         double  * RAS = cNode->GetCrosshairRAS();
+         ras[0] = RAS[0];
+         ras[1] = RAS[1];
+         ras[2] = RAS[2];
+         }
+       else 
+         {
+         this->PrintText("Did not find crosshair manager ");
+         this->PrintText("Did not find crosshair.");
+         return;
+         }
+       }
+     if ( ras[0]+ras[1]+ras[2] == 0) 
+       {
+       this->PrintText("RAS not set");
+       return;
+       }
+     // this test code works.
+     QTextStream test(stdout);
+     test << "RAS co-ords :" << ras[0] << ":"<<ras[1]<<":"<<ras[2]<< "\n";     
+
+     if ( ! sliceWidget )
+       {
+       this->PrintText("sliceWidget not set, return.");
+       return;       
+       }
+     vtkMRMLSliceLogic * sliceLogic = sliceWidget->sliceLogic();
+     vtkMRMLSliceNode * sliceNode = sliceWidget->mrmlSliceNode();
+     if ( ! sliceLogic || ! sliceNode ) 
+       {
+       this->PrintText("sliceLogic or sliceNode not set");
+       return;
+       }
+     else 
+       {
+       vtkMatrix4x4 *rasToXYZ = vtkMatrix4x4::New();
+       rasToXYZ->DeepCopy(sliceNode->GetXYToRAS());
+       rasToXYZ->Invert();
+       double rasw[4], xyzw[4];
+       rasw[0] = ras[0];
+       rasw[1] = ras[1];
+       rasw[2] = ras[2];
+       rasw[3] = 1.0;
+       rasToXYZ->MultiplyPoint(rasw, xyzw);
+       xyz[0] = xyzw[0]/xyzw[3];
+       xyz[1] = xyzw[1]/xyzw[3];
+       xyz[2] = xyzw[2]/xyzw[3];
+       rasToXYZ->Delete();
+       }
+     test << "XYZ co-ords : "<< xyz[0] << ":" <<xyz[1] << ":" <<xyz[2]  <<"\n";
+//      QList<double> xyz = vtkMRMLAbstractSliceViewDisplayableManager::ConvertDeviceToXYZ(interactor, sliceNode, xy[0], xy[1], xyz);
+//      QList<double> ras = vtkMRMLAbstractSliceViewDisplayableManager::ConvertXYZToRAS(sliceNode, xyz, ras);
+     
+//      // RAS
+//      d->ViewerRAS->setText(QString("RAS: (%1, %2, %3)").
+//                            arg(ras[0], /* fieldWidth= */ 0, /* format = */ 'f', /* precision= */ 1).
+//                            arg(ras[1], /* fieldWidth= */ 0, /* format = */ 'f', /* precision= */ 1).
+//                            arg(ras[2], /* fieldWidth= */ 0, /* format = */ 'f', /* precision= */ 1));
+
+/*      // Orientation
+     d->ViewerOrient->setText(QString("  %1").arg(sliceWidget->sliceOrientation()));
+     
+     // Spacing
+     QString spacing = QString("%1").arg(
+       sliceLogic->GetLowestVolumeSliceSpacing()[2],
+       / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1);
+     if (sliceNode->GetSliceSpacingMode() == vtkMRMLSliceNode::PrescribedSliceSpacingMode)
+       {
+       spacing = "(" + spacing + ")";
+       }
+     d->ViewerSpacing->setText(QString("Sp: %1").arg(spacing));
+   
+     // Color
+     double layoutColor[3] = {0.0, 0.0, 0.0};
+     sliceNode->GetLayoutColor(layoutColor);
+     d->ViewerColor->setStyleSheet(
+       QString("QLabel {background-color : %1}").arg(
+         QColor::fromRgbF(layoutColor[0], layoutColor[1], layoutColor[2]).name()));
+
+     // Name
+     d->ViewerName->setText(QString("  %1  ").arg(sliceNode->GetLayoutName()));
+*/   
+     
+     // Layer name, ijk and value
+     typedef QPair<QString, vtkMRMLSliceLayerLogic*> LayerIdAndLogicType;
+
+     foreach(LayerIdAndLogicType layerIdAndLogic,
+             (QList<LayerIdAndLogicType>()
+              << LayerIdAndLogicType("L", sliceLogic->GetLabelLayer())
+//               << LayerIdAndLogicType("B", sliceLogic->GetBackgroundLayer())
+//               << LayerIdAndLogicType("F", sliceLogic->GetForegroundLayer())
+             ) )
+       {
+
+       QString sliceLayerId = layerIdAndLogic.first;
+       vtkMRMLSliceLayerLogic * sliceLayerLogic = layerIdAndLogic.second;
+       if (! sliceLayerLogic) 
+         {
+         this->PrintText("Failed to get slicelayer logic");
+         return;
+         }
+       vtkMRMLVolumeNode * volumeNode = sliceLayerLogic->GetVolumeNode();
+       QString layerName = "None";
+//        QString ijkAsString;
+       QString valueAsString;
+       if (volumeNode)
+         {
+//          this->PrintText("Have volume node, reading values");
+//          return;
+         layerName = volumeNode->GetName();
+         // QList<double> ijk = d->convertXYZToIJK(sliceLayerLogic, xyz);q
+
+         vtkMatrix4x4 * xyToIJK = sliceLayerLogic->GetXYToIJKTransform()->GetMatrix();
+         double xyzw[4] = {xyz[0], xyz[1], xyz[2], 1.0};
+         double ijkw[4] = {0.0, 0.0, 0.0, 0.0};
+         xyToIJK->MultiplyPoint(xyzw, ijkw);
+         //Q_ASSERT(ijkw[3] == 1.0);
+         QList<double> ijk ;
+         ijk << ijkw[0] <<  ijkw[1] <<  ijkw[2];
+
+//          ijkAsString = QString("(%1, %2, %3)").arg(qRound(ijk[0])).arg(qRound(ijk[1])).arg(qRound(ijk[2]));
+         
+         // from vtkSlicerDataProbeLogic::ProbePixel
+         vtkMRMLScalarVolumeNode * scalarVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(volumeNode);
+         vtkImageData * imageData = scalarVolumeNode->GetImageData();
+         double labelIndex = imageData->GetScalarComponentAsDouble(ijkw[0],ijkw[1],ijkw[2],0); //ijkw[3]);
+         vtkMRMLColorNode * colorNode = scalarVolumeNode->GetDisplayNode()->GetColorNode();
+         std::string labelName = colorNode->GetColorName(static_cast<int>(labelIndex));
+         QString valueAsString;
+         QStringList valueAsStrings;
+
+
+         valueAsString = QString::fromStdString(labelName);
+         valueAsStrings << valueAsString;
+         valueAsStrings << " (" ;
+         valueAsStrings << QString::number(labelIndex);
+         valueAsStrings << ")";
+        
+         valueAsString = valueAsStrings.join(", ");
+         //QString lIdx = QString("%1").arg(labelIndex, /* fieldWidth= */ 0, /* format = */ 'g', /* precision= */ 4);
+         
+         d->StructureName->setText(valueAsString);
+         /*
+         if(d->DataProbeLogic)
+           {
+           int probeStatus = d->DataProbeLogic->ProbePixel(volumeNode, ijk[0], ijk[1], ijk[2]);
+           if (probeStatus & vtkSlicerDataProbeLogic::PROBE_SUCCESS)
+             {
+             if (d->DataProbeLogic->GetPixelNumberOfComponents() > 3)
+               {
+               valueAsString = QString("%1 components").arg(d->DataProbeLogic->GetPixelNumberOfComponents());
+               }
+             else
+               {
+               QStringList valueAsStrings;
+               for(int pixelValueIdx = 0; pixelValueIdx < d->DataProbeLogic->GetNumberOfPixelValues(); ++pixelValueIdx)
+                 {
+                 valueAsStrings << QString("%1").
+                   arg(d->DataProbeLogic->GetPixelValue(pixelValueIdx), / * fieldWidth= * / 0, / * format = * / 'g', / * precision= * / 4);
+                 }
+               valueAsString = valueAsStrings.join(", ");
+               }
+             QString pixelDescription = QString::fromStdString(d->DataProbeLogic->GetPixelDescription());
+             if (!pixelDescription.isEmpty())
+               {
+               pixelDescription.append(" ");
+               if (probeStatus == vtkSlicerDataProbeLogic::PROBE_SUCCESS_LABEL_VOLUME ||
+                   probeStatus == vtkSlicerDataProbeLogic::PROBE_SUCCESS_LABEL_VOLUME_UNKNOWN_LABELNAME)
+                 {
+                 valueAsString = QString("(%1)").arg(valueAsString);
+                 }
+               valueAsString.prepend(pixelDescription);
+               }
+             }
+           else
+             {
+             valueAsString = QString::fromStdString(d->DataProbeLogic->GetPixelProbeStatusAsString());
+             }
+           }*/
+
+         } // end if volumenode valid statement
+       else
+         {
+         this->PrintText("Could not get volulmenode");
+         }
+
+//        d->RowsOfLayerLabels[sliceLayerId].at(0)->setText(QString("<b>%1</b>").arg(layerName));
+//        d->RowsOfLayerLabels[sliceLayerId].at(1)->setText(ijkAsString);
+//        d->RowsOfLayerLabels[sliceLayerId].at(2)->setText(QString("<b>%1</b>").arg(valueAsString));
+
+       } // end foreach layer loop
+     } // end if event match statement
+   else
+     {
+     this->PrintText("Unknown event");
+     }
+   
+//   vtkCommand * out = new vtkCommand::MouseMoveEvent;
+   
+   return ;//out;
+ } // end processevent
+
+
+ 
+//------------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::LabelAtPosition() //vtkMRMLNode * node)// ,QString event)
+//void qSlicerCIVM_AdultRatPGRModuleWidget::Processevent(vtkObject* object, unsigned long event, void* clientdata, void* calldata) //vtkMRMLNode * node)// ,QString event)
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);  
+  
+//   if ( event == "LeaveEvent" ) 
+//     {
+//     d->StructureName->setText("");
+//     this->PrintText("LeaveEvent");
+//     } 
+//   else if ( event == "EnterEvent" )
+//     {
+//     this->PrintText("EnterEvent");
+//     }
+//   else if ( event == "MouseMoveEvent" ) 
+//     {
+//     d->StructureName->setText("TEST");  
+//     }
+//   else
+//     {
+    
+//     }
+  //cNode=vtkMRMLCrosshairNode::SafeDownCast(node);
+    
+
+  
+ 
+  /*
+
+      layerLogicCalls = (('L', sliceLogic.GetLabelLayer),
+                         ('F', sliceLogic.GetForegroundLayer),
+                         ('B', sliceLogic.GetBackgroundLayer))
+      for layer,logicCall in layerLogicCalls:
+        layerLogic = logicCall()
+        volumeNode = layerLogic.GetVolumeNode()
+        
+        layerLogic.GetXYToIJKTransform().GetMatrix()
+    
+      colorNode = volumeNode.GetDisplayNode().GetColorNode()
+      if colorNode:
+        labelValue = colorNode.GetColorName(labelIndex)
+      return "%s (%d)" % (labelValue, labelIndex)
+
+  */
+  //sliceview.interactor.
+  //vtkSliceViewInteractorinside sliceview.
+    //qMRMLSliceView::convertRAStoXYZ()
+  vtkMRMLSliceNode * sliceNode = NULL;
+  vtkMRMLSliceLogic * sliceLogic = NULL;
+  vtkMRMLApplicationLogic *mrmlAppLogic = this->logic()->GetMRMLApplicationLogic();
+  vtkMRMLScene* currentScene = this->mrmlScene();
+//  vtkMRMLNode * node = NULL;
+  //vtkMRMLSelectionNode * selectionNode = NULL; 
+  //selectionNode = mrmlAppLogic->GetSelectionNode();
+  //currentScene->GetNodeByID(selectionNode->GetActiveViewID());//toStdString()
+  //sliceNode=currentScene->GetNodeByID(mrmlAppLogic->GetSelectionNode->GetActivewViewID);//
+  //sliceNode=currentScene->GetNodeByID(mrmlAppLogic->GetSelectionNode->GetActivewViewID);//
+  
+  //selectionNode=mrmlAppLogic->GetSelectionNode();
+  //selectionNode->PrintSelf();
+  
+  //->GetActiveViewID();;
+  //char * ID = selectionNode->GetActiveViewID();
+  
+  //sliceNode=vtkMRMLSliceNode::SafeDownCast(selectionNode->GetActiveViewID());
+  //sliceNode = vtkMRMLSliceNode::SafeDownCast()  
+  if (mrmlAppLogic && sliceNode)
+    {
+    sliceLogic = mrmlAppLogic->GetSliceLogic(sliceNode);
+
+    if ( sliceLogic != NULL  ) 
+      {
+      vtkMRMLVolumeNode * volumeNode = NULL;
+      //volumeNode = sliceLogic->GetBackgroundLayer();
+      //qvolumeNode = sliceLogic->GetLabelLayer();
+      //getxytoijktransform.getmatrix
+//sliceLogic->GetLabelLayer;
+//sliceLogic->GetLabelLayer;
+      
+    }
+
+    }
+  else 
+    {
+    this->PrintText("Failed to find slice logic");
+    }
+
+/*
+        if ( sliceLogic != NULL  ) 
+          {
+//        this->PrintText("sliceLogic setNode");
+          sliceLogic->SetSliceNode(sliceNode);
+//        this->PrintText("SliceLogic Interaction");
+          sliceLogic->StartSliceNodeInteraction(vtkMRMLSliceNode::ResetFieldOfViewFlag);
+//        this->PrintText("SliceLogic FitSlice");
+
+            sliceLogic->FitSliceToAll();
+//           if (loadMoreFiles) 
+//             {
+//             }
+//        this->PrintText("Slicenode UpdateMatricies");
+          sliceNode->UpdateMatrices();
+//        this->PrintText("SliceLogic Interaction end");
+          sliceLogic->EndSliceNodeInteraction();
+          }
+        else 
+          {
+          this->PrintText("Failed to set slice logic");
+          }
+
+   */
+
+
+  return ;
+}
+
+//------------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::ResetTransform()
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);  
@@ -877,10 +1614,11 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ResetTransform()
 
   return;
 }
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
 {
   Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
+  //this->PrintMethod("SetSliceOffsetValue");
   // we're going to hard set this to the SceneNodes 1-2 in the list from list of 0-3
   // that should correspond to scene nodes Yellow and 1.
   
@@ -920,7 +1658,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
 }
 
 
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 // double qSlicerCIVM_AdultRatPGRModuleWidget::GetSliceOffsetValue(vtkMRMLNode * n)
 // {
 //   double offset;
@@ -929,10 +1667,10 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliceOffsetValue(double offset)
 //   return offset;
 // }`
 
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliderRange(ctkSliderWidget * widge, std::vector<double> range) //vtkMRMLSliceMode
 {
-  this->PrintMethod("SetSliderRange");
+//  this->PrintMethod("SetSliderRange");
   if ( !widge ) 
     {
     this->PrintText("bad widge, skipping set range.");
@@ -944,7 +1682,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliderRange(ctkSliderWidget * widge
     //widge->setMinimum(range[0]);
     //  this->PrintText("setMax");
     //widge->setMaximum=(range[1]);
-    this->PrintText("setRan");
+//    this->PrintText("setRan");
     widge->setRange(range[0],range[1]);
 //   this->PrintText("setTic");
 //nope   widge->setTickInterval((range[1]-range[0])/256);
@@ -952,12 +1690,12 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetSliderRange(ctkSliderWidget * widge
 //nope   widge->setPageStep((range[1]-range[0])/256);
 //   this->PrintText("setTicPos");
 //have to use position type.   widge->setTickPosition((range[1]-range[0])/2);
-    this->PrintText("setSStep");
+//    this->PrintText("setSStep");
     widge->setSingleStep((range[1]-range[0])/256);
     }
   return ;
 } // */
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 //std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkImageData * node)
 std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliceFOV(vtkMRMLNode * node)
 {
@@ -987,11 +1725,11 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliceFOV(vtkMRMLNode
   test << "\n";
   return fov;
 }
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 //std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkImageData * node)
 std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLNode * node)
 {
-  this->PrintMethod("GetSliderRange");
+  //this->PrintMethod("GetSliderRange");
   std::vector<double> range (2,0);
   range[0] = 0;
   range[1] = 1;
@@ -1004,13 +1742,13 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLN
   localNode->GetRASBounds(sliceBounds);
   range[0]=sliceBounds[0];
   range[1]=sliceBounds[1];
-  QTextStream test(stdout);  
-  test << "Returning range \t";
-  for(int it=0;it<range.size(); it++)
-    {
-    test<< range[it] << " \t";
-    }
-  test << "\n";
+//  QTextStream test(stdout);  
+//  test << "Returning range \t";
+//   for(int it=0;it<range.size(); it++)
+//     {
+//     test<< range[it] << " \t";
+//     }
+//   test << "\n";
 //   double * fov;
 //   double * spacing;
 //   int * dims ;
@@ -1065,7 +1803,7 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRange(vtkMRMLN
   return range;
 }
 
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRangeSlice(vtkMRMLNode * n)
 {
 
@@ -1166,7 +1904,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::DecrimentSlider(ctkSliderWidget * )
   return;
 }
 
-// --------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::getSliceOffsetValue(double offset)
 {
     Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
@@ -1219,7 +1957,7 @@ QStringList qSlicerCIVM_AdultRatPGRModuleWidget::SetLayout()  //QString layout
     << "Slice1"
     << "Green";
     //vtkMRMLLayoutNode::SlicerLayoutTwoOverTwoView
-    this->PrintText("Layout should have 2 volumes");
+    this->PrintText("\tLayout should have 2 volumes");
     sceneLayoutNode->SetViewArrangement(vtkMRMLLayoutNode::SlicerLayoutTwoOverTwoView);
     }
    else if ( this->Layout=="Dual3D")
@@ -1232,7 +1970,7 @@ QStringList qSlicerCIVM_AdultRatPGRModuleWidget::SetLayout()  //QString layout
       setSliceOrient=true;
       //vtkMRMLLayoutNode::SlicerLayoutFourUpView
       sceneLayoutNode->SetViewArrangement(vtkMRMLLayoutNode::SlicerLayoutDual3DView);
-      this->PrintText("Layout should have 2 volumes");
+      this->PrintText("\tLayout should have 2 volumes");
     }  
     else
     {

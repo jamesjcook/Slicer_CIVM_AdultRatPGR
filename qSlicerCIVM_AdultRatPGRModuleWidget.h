@@ -22,13 +22,14 @@
 #include "qSlicerAbstractModuleWidget.h"
 
 #include "qSlicerCIVM_AdultRatPGRModuleExport.h"
-
+#include <qSlicerWidget.h>
+#include <qMRMLSliceWidget.h>
 #include <ctkSliderWidget.h>
 
 class qSlicerCIVM_AdultRatPGRModuleWidgetPrivate;
 class vtkCollection;
-class vtkMRMLNode;
-class vtkMRMLSliceNode;
+//class vtkMRMLNode;
+//class vtkMRMLSliceNode;
 //class vtkImageData;
 
 
@@ -57,25 +58,34 @@ public:
   QString ViewNodeContrast1;  // First viewers's contrast selection. 
   QString ViewNodeContrast2;  // Second viewers Contrast Selection.
   QStringList SceneNodes;     // list of nodes in the scene, this could probably be a protected variable.
-  QString HistologyNodeName;    // name ot the histology node.
+  QString HistologyNodeName;  // name ot the histology node.
   QString Layout;             //String name of the layout to use.
   QString DataPath;           //path to data set in the setup function, will have to be
   QString LabelPath;          //see datapath.
   QString DataPattern;        //pattern for data file to have parts replacd wit actual contrast and timepoint information.
   QString LabelPattern;       //see datapattern
   double Pos;           //container for position of the axial image slider
+  double PosBackup;
   double Angle;         //container for position of the sagital angle slider
-  //  vtkMRMLSliceNode * SlicePointer ; // smart pointer to connect our slider to to adjust both our datastes at the same time. 
+  double AngleBackup;
+  int InitialCrosshairThickness; // variable to save the crosshair state before we change it.
   
+  //  vtkMRMLSliceNode * SlicePointer ; // smart pointer to connect our slider to to adjust both our datastes at the same time. 
+  //  QTextStream Err; // conection to stderr
+  //  QTextStream Out; // conection to stdout
 
   // double GetSliceOffsetValue(vtkMRMLode *);
   //  std::vector<double> GetSliderRange(vtkImageData * );
   std::vector<double> GetSliderRange(vtkMRMLNode * );
   std::vector<double> GetSliceFOV(vtkMRMLNode * );
   std::vector<double> GetSliderRangeSlice(vtkMRMLNode * );
+  std::vector<unsigned long> ObserverTags;
+  float Priority;
   void SetSliderRange(ctkSliderWidget * , std::vector<double>);
   void ResetTransform();
-
+  void LabelAtPosition(); // tells the label value/name at the current mouse position in the StructureName QLabel
+  //void LabelAtPosition(vtkMRMLNode * ); // tells the label value/name at the current mouse position in the StructureName QLabel
+  //vtkCommand *  LabelAtPosition();
   /*
   ///
   /// Get/Set the current distance from the origin to the slice plane
@@ -92,16 +102,25 @@ public:
   void HistologySelectionDialog(); // runs the histology selection dialog.
   void SetSliceOffsetValue(double offset);
   void SetSliceGeometry(double angle);
+  void SetMouseWatcherStatus() ; // turns on mouse watching.
+  void SetMouseWatcherStatus_old() ; // turns on mouse watching.
+
   //  void trackSliceOffsetValue(double offset);
+  protected slots:
+  void ProcessEvent(vtkObject* sender,
+                            void* callData,
+                            unsigned long eventId,
+                            void* clientData);
   
  protected:
   QScopedPointer<qSlicerCIVM_AdultRatPGRModuleWidgetPrivate> d_ptr;
-  
   virtual void setup();
-  
+                            
+
  private:
   Q_DECLARE_PRIVATE(qSlicerCIVM_AdultRatPGRModuleWidget);
   Q_DISABLE_COPY(qSlicerCIVM_AdultRatPGRModuleWidget);
+  qMRMLSliceWidget * SlicerWidget(vtkInteractorObserver * ) ;
 };
 
 #endif

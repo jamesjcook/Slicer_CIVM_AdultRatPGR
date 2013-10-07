@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>646</width>
-    <height>461</height>
+    <width>853</width>
+    <height>539</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QHBoxLayout" name="horizontalLayout_2">
+  <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="ctkSettingsPanel" name="SettingsPanel">
      <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -63,13 +63,19 @@
          <item>
           <widget class="ctkSliderWidget" name="SliderAngle">
            <property name="singleStep">
-            <double>0.100000000000000</double>
+            <double>0.010000000000000</double>
            </property>
            <property name="minimum">
             <double>-180.000000000000000</double>
            </property>
            <property name="maximum">
             <double>180.000000000000000</double>
+           </property>
+           <property name="tickInterval">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="tickPosition">
+            <enum>QSlider::NoTicks</enum>
            </property>
           </widget>
          </item>
@@ -85,7 +91,16 @@
          <enum>QFrame::Plain</enum>
         </property>
         <layout class="QHBoxLayout" name="horizontalLayout">
-         <property name="margin">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>2</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
           <number>2</number>
          </property>
          <item>
@@ -142,14 +157,94 @@
        </widget>
       </item>
       <item>
-       <widget class="ctkCollapsibleButton" name="CTKCollapsibleButton">
+       <widget class="ctkPushButton" name="BuildSceneButton">
         <property name="text">
-         <string>Display</string>
+         <string>Reset Viewers</string>
         </property>
-        <layout class="QVBoxLayout">
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkCollapsibleButton" name="LabelInformation">
+        <property name="text">
+         <string>Points of interest.</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_3">
          <property name="margin">
           <number>2</number>
          </property>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="QFrame" name="LabelwatcherControlsFrame">
+        <property name="frameShape">
+         <enum>QFrame::NoFrame</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Plain</enum>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_8">
+         <property name="margin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QFrame" name="StructureNameFrame">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Plain</enum>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <property name="margin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="ctkCheckBox" name="WatchMousePositionCheckBox">
+              <property name="text">
+               <string>Show label at cursor.</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="StructureName">
+              <property name="text">
+               <string/>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QFrame" name="FiduicialListFrame">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Plain</enum>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_7">
+            <property name="margin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="ctkPushButton" name="ClearFiducialList">
+              <property name="text">
+               <string>Clear Fiducial List</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QListWidget" name="FiducialList">
+              <property name="frameShape">
+               <enum>QFrame::NoFrame</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
         </layout>
        </widget>
       </item>
@@ -177,6 +272,11 @@
    <extends>QWidget</extends>
    <header>qSlicerWidget.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkCheckBox</class>
+   <extends>QCheckBox</extends>
+   <header>ctkCheckBox.h</header>
   </customwidget>
   <customwidget>
    <class>ctkCollapsibleButton</class>
