@@ -21,9 +21,11 @@
 #include <qMRMLSliceWidget.h>
 #include <qMRMLSliceControllerWidget.h>
 #include <qMRMLSliceView.h>
+#include <qSlicerViewersToolBar.h>
 
 // SlicerQt includes
 #include "qSlicerApplication.h"
+
 
 #include "qSlicerLayoutManager.h"
 #include "qSlicerIOManager.h"
@@ -40,6 +42,7 @@
 #include "vtkMRMLSliceLogic.h"
 #include "vtkMRMLSliceLayerLogic.h"
 #include "vtkMRMLScalarVolumeNode.h"
+#include <vtkMRMLVolumeDisplayNode.h>
 #include <vtkImageData.h>
 #include <vtkMRMLColorNode.h>
 #include <vtkMRMLCrosshairNode.h>
@@ -111,6 +114,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   this->GalleryName="CIVM_AdultRatAtlas";
   this->CenterVolumeOnLoad=true;
   this->Priority=2;
+//   this->RegionMarker=vtkMRMLCrosshairNode(this->mrmlScene);
 //   double sliderPos[2];
 //   sliderPos[0]=0;
 //   sliderPos[1]=0;
@@ -435,6 +439,8 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
     orthogonalOrientations << "Axial"
                            << "Sagittal"
                            << "Coronal";
+
+
     //build list of files to load.
     for (int c=0;c<contrastList.size();c++)
       {
@@ -488,17 +494,24 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
           }
         }//timepoint foor loop end
       }//contrast timepoint loop end.
+    
+    qSlicerIO::IOProperties cTable;
+    labelFile="Slicer_LUT_RatDev.txt";
+    labelPath = LabelPath+labelFile;
+    labelNode=labelFile;
+    labelNode.replace(".txt","");
+    cTable["fileType"]       = "ColorTableFile";
+    imageProperties << cTable;
+    nodeName                   = labelNode;
+    cTable["fileName"]        = labelPath;
+    cTable["nodeName"]        = nodeName;
+    labelProperties[0]["colorMapName"] = cTable["nodeName"];
+
+    labelProperties << cTable;
+
+
 
     int snCounter;// this is for scene nodes later but right now its for any image we want loaded.
-    //loop for all images to add only unloaded to load list
-    for(snCounter=0;snCounter<imageProperties.size();snCounter++)
-      {
-      if ( ! NodeExists(imageProperties[snCounter]["nodeName"].toString()) )
-        {
-        unloadedFiles << imageProperties[snCounter];
-        loadMoreFiles=true;
-        } 
-      }
     //loop for all labels to add only unloaded to load list need to do a unique element on this list... (bleh), the qset might do the trick
     QSet<QString> labelNodes;
     for(snCounter=0;snCounter<labelProperties.size();snCounter++)
@@ -534,12 +547,46 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
         this->PrintText("\tFound label"+labelProperties[snCounter]["nodeName"].toString());
         }
       }
+    //loop for all images to add only unloaded to load list
+    for(snCounter=0;snCounter<imageProperties.size();snCounter++)
+      {
+      if ( ! NodeExists(imageProperties[snCounter]["nodeName"].toString()) )
+        {
+        unloadedFiles << imageProperties[snCounter];
+        loadMoreFiles=true;
+        } 
+      }
+
     //load data
     qSlicerApplication * s_app_obj = qSlicerApplication::application(); //set application linking.
     if ( loadMoreFiles ) 
       {
       s_app_obj->coreIOManager()->loadNodes(unloadedFiles); // images
       }
+    if( LoadLabels)
+      {
+      //get volumedisplaynode for the labelmap
+      qSlicerIO::IOProperties temp;
+      temp=labelProperties[0];
+      QString nodename = temp["nodeName"].toString();
+      vtkMRMLVolumeNode * vN=vtkMRMLVolumeNode::SafeDownCast(
+        this->mrmlScene()->GetFirstNodeByName(temp["nodeName"].toString().toStdString().c_str()));
+      //scNode->SetLabelVolumeID(this->NodeID(labelProperties[imCounter]["nodeName"].toString()));	//set labels to slicecomposite
+//may have to loop over the volumedisplaynodes in tehe scene to find the one pointing at the labelnode
+      //setcolormap on the volumedisplaynode.
+      //labelProperties[0]["colorMapID"] = cTable["nodeName"];
+      if ( vN ) 
+        {
+        vN->GetVolumeDisplayNode()->SetAndObserveColorNodeID(this->NodeID(temp["colorMapName"].toString().toStdString().c_str()) );
+        }
+      else 
+        {
+        this->PrintText("could not fetch the VolumeNode of the labels to assign the color table");
+        }
+ 
+      }
+    
+    
 //  currentScene->GetNextNodeByClass("vtkMRMLLayoutNode"); // correct method it would appear to get the layout.  
 
 //   if (sliceNode !=NULL && snCounter>0 && snCounter<3) 
@@ -902,9 +949,10 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
   bool status=d->WatchMousePositionCheckBox->isChecked();
   qSlicerApplication *        s_app_obj = qSlicerApplication::application(); //set application linking.
   qSlicerLayoutManager *  layoutManager = s_app_obj->layoutManager();
-
-
   QList<vtkInteractorObserver*> interactorStyles;
+  int crosshairBehavior=0;
+
+
   foreach(const QString& sliceViewName, layoutManager->sliceViewNames())
     {
     qMRMLSliceWidget * sliceWidget = layoutManager->sliceWidget(sliceViewName);
@@ -912,6 +960,52 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
     interactorStyles << sliceWidget->sliceView()->interactorStyle();
     }
 
+//qSlicerViewersToolBar
+//   vtkMRMLApplicationLogic *mrmlAppLogic = this->logic()->GetMRMLApplicationLogic();
+//   qSlicerViewersToolBar * toolBar = NULL ;
+//   toolBar = this->mrmlScene()->GetNextNodeByClass("qSlicerViewersToolBar"); // qSlicerViewersToolBar::SafeDownCast(); //vtkMRMLCrosshairNode"));
+  
+//   if ( ! toolBar )  
+//     {
+//     this->PrintText("Could not get the tool bar node to set the crosshair button");
+//     this->mrmlScene()->PrintSelf();
+//     }
+
+  this->mrmlScene()->InitTraversal();
+  vtkMRMLCrosshairNode *  cNode = NULL; 
+  cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
+//   QList<vtkMRMLCrosshairNode> * cNodes = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNodesByClass("vtkMRMLCrosshairNode"));  
+//   cNode->GetItemAsObject(0);
+   if ( ! cNode) 
+     {
+     this->PrintText("failed to retrieve crosshair");
+     return;
+     }
+//   int numberCrosshairNodes = 0; 
+//   numberCrosshairNodes = this->mrmlScene()->GetNumberOfNodesByClass("vtkMRMLCrosshairNode");
+//   if (numberCrosshairNodes == 0 )  
+//     {
+//     this->PrintText("No crosshair nodes found");
+//     d->WatchMousePositionCheckBox->setChecked(false);
+//     this->SetMouseWatcherStatus();
+//     return;
+//     } 
+//   else
+//     {
+//    this->mrmlScene()->InitTraversal();
+//     cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
+//     test << "Number of crosshair nodes :" << numberCrosshairNodes << "\n";
+//     if ( ! cNode) 
+//       {
+//       this->PrintText ("Couldnt get crosshair node with getnextnode");
+//       cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNodesByClass("vtkMRMLCrosshairNode"));
+//       if ( ! cNode) 
+//         {
+//         this->PrintText ("Couldnt get crosshair node with getnodes");
+//         return;
+//         }
+//       }
+//     }
 
   if ( ! status )
     {
@@ -927,23 +1021,78 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
         }
       }
     d->ObservedInteractorStyles.clear();
+    if (cNode)
+      {
+      this->PrintText("Un-setting crosshair");
+      cNode->SetCrosshairMode(vtkMRMLCrosshairNode::NoCrosshair);
+      }
     }
   else
     {
-
     // Add observers
+    this->PrintText("Connect");
+    QTextStream test(stdout);
     foreach(vtkInteractorObserver * interactorStyle, interactorStyles)
       {
       foreach(int event, QList<int>()
               << vtkCommand::MouseMoveEvent << vtkCommand::EnterEvent << vtkCommand::LeaveEvent)
         {
-        this->PrintText("Connect");
+        test<<"+";
         qvtkConnect(interactorStyle, event,
                     this, SLOT(ProcessEvent(vtkObject*,void*,ulong,void*)));
         }
       d->ObservedInteractorStyles << interactorStyle;
       }
-    }  
+    test << ".\n";
+    
+    if (cNode)
+      {
+      this->PrintText("Setting Crosshair");
+      cNode->SetCrosshairToFine();
+      cNode->SetCrosshairMode(vtkMRMLCrosshairNode::ShowBasic);
+      }  
+    }
+
+
+//   // pulled from qSlicerViewersToolBar::setCrosshairMode(bool mode)
+//   vtkSmartPointer<vtkCollection> nodes;
+//   nodes.TakeReference(this->mrmlScene()->GetNodesByClass("vtkMRMLCrosshairNode"));
+//   if (!nodes.GetPointer())
+//     {
+//     this->PrintText("Failed to get the node pointer to the crosshair.");
+//     return;
+//     }
+//   vtkMRMLCrosshairNode* node = 0;
+//   vtkCollectionSimpleIterator it;
+//   for (nodes->InitTraversal(it);(node = static_cast<vtkMRMLCrosshairNode*>(
+//                                    nodes->GetNextItemAsObject(it)));)
+//     {
+// //     if (crosshairBehavior)
+// //       {
+//     this->PrintText("setcrosshairbehavior");
+//       node->SetCrosshairMode(crosshairBehavior);
+// //       }
+// //     else
+// //       {
+// //       this->PrintText("No crosshairmode");
+// //       node->SetCrosshairMode(vtkMRMLCrosshairNode::NoCrosshair);
+// //       }
+//     }
+
+  foreach(const QString& sliceViewName, layoutManager->sliceViewNames())
+    {
+    qMRMLSliceWidget * sliceWidget = layoutManager->sliceWidget(sliceViewName);
+    //Q_ASSERT(sliceWidget);
+//     const qMRMLSliceView * sView =sliceWidget->sliceView(); // qMRMLSliceView::SafeDownCast();
+//     sView->StartModify();
+//     sView->EndModify(false);
+    vtkMRMLSliceNode * sNode =sliceWidget->mrmlSliceNode(); // qMRMLSliceView::SafeDownCast();
+    sNode->StartModify();
+    sNode->EndModify(false);
+
+    }
+
+
   this->PrintText("SetMouseWatcherSuccess");
   return;
 }
@@ -973,6 +1122,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus_old()
     {
     this->PrintText("No crosshair nodes found");
     d->WatchMousePositionCheckBox->setChecked(false);
+    this->SetMouseWatcherStatus();
     return;
     } 
   else
@@ -986,6 +1136,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus_old()
     {
     this->PrintText("No slice nodes found");
     d->WatchMousePositionCheckBox->setChecked(false);
+    this->SetMouseWatcherStatus();
     return;
     } 
   else
@@ -1020,6 +1171,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus_old()
     //    GetNextNodeByClass("vtkMRMLCrosshairDisplayableManager");
     //     this->InitialCrosshairThickness=cNode->GetCrosshairThickness();
       cNode->SetCrosshairToFine();    
+//       cNode->SetCrosshairBehaviro("ShowBasic");
     //     connect(cmgr->OnInteractorEvent(),SIGNAL(),SLOT(LabelAtPosition()))
     //    connect(d->OnInteractionEvent(),SIGNAL(convertRASToXYZ(QList<double> ),SLOT(LabelAtPosition());
     //connect(d->WatchMousePositionCheckBox,SIGNAL(toggled(bool)),SLOT(EnabelMouseWatcher(bool)));
@@ -1155,7 +1307,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
  {
    Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
 //   Q_Q(qSlicerCIVM_AdultRatPGRModuleWidget);
-   this->PrintMethod("ProcessEvent");
+//   this->PrintMethod("ProcessEvent");
    Q_UNUSED(callData);
    Q_UNUSED(clientData);
 
@@ -1266,12 +1418,14 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
        }
      if ( ras[0]+ras[1]+ras[2] == 0) 
        {
-       this->PrintText("RAS not set");
-       return;
+       this->PrintText("RAS not set, crosshair failed to start.");
+//        d->WatchMousePositionCheckBox->setChecked(false);
+//        this->SetMouseWatcherStatus();
+//        return;
        }
      // this test code works.
-     QTextStream test(stdout);
-     test << "RAS co-ords :" << ras[0] << ":"<<ras[1]<<":"<<ras[2]<< "\n";     
+//      QTextStream test(stdout);
+//      test << "RAS co-ords :" << ras[0] << ":"<<ras[1]<<":"<<ras[2]<< "\n";     
 
      if ( ! sliceWidget )
        {
@@ -1301,16 +1455,18 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
        xyz[2] = xyzw[2]/xyzw[3];
        rasToXYZ->Delete();
        }
-     test << "XYZ co-ords : "<< xyz[0] << ":" <<xyz[1] << ":" <<xyz[2]  <<"\n";
+//      test << "XYZ co-ords : "<< xyz[0] << ":" <<xyz[1] << ":" <<xyz[2]  <<"\n";
+
+/*
 //      QList<double> xyz = vtkMRMLAbstractSliceViewDisplayableManager::ConvertDeviceToXYZ(interactor, sliceNode, xy[0], xy[1], xyz);
 //      QList<double> ras = vtkMRMLAbstractSliceViewDisplayableManager::ConvertXYZToRAS(sliceNode, xyz, ras);
      
 //      // RAS
 //      d->ViewerRAS->setText(QString("RAS: (%1, %2, %3)").
-//                            arg(ras[0], /* fieldWidth= */ 0, /* format = */ 'f', /* precision= */ 1).
-//                            arg(ras[1], /* fieldWidth= */ 0, /* format = */ 'f', /* precision= */ 1).
-//                            arg(ras[2], /* fieldWidth= */ 0, /* format = */ 'f', /* precision= */ 1));
-
+//                            arg(ras[0], / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1).
+//                            arg(ras[1], / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1).
+//                            arg(ras[2], / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1));
+*/
 /*      // Orientation
      d->ViewerOrient->setText(QString("  %1").arg(sliceWidget->sliceOrientation()));
      
@@ -1386,9 +1542,8 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
 
          valueAsString = QString::fromStdString(labelName);
          valueAsStrings << valueAsString;
-         valueAsStrings << " (" ;
-         valueAsStrings << QString::number(labelIndex);
-         valueAsStrings << ")";
+         valueAsStrings << " ("+QString::number(labelIndex)+")";
+
         
          valueAsString = valueAsStrings.join(", ");
          //QString lIdx = QString("%1").arg(labelIndex, /* fieldWidth= */ 0, /* format = */ 'g', /* precision= */ 4);
@@ -1444,6 +1599,10 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
 
        } // end foreach layer loop
      } // end if event match statement
+   else if(eventId == vtkCommand::LeaveEvent)
+     {
+     
+     }
    else
      {
      this->PrintText("Unknown event");

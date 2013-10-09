@@ -25,6 +25,7 @@
 #include <qSlicerWidget.h>
 #include <qMRMLSliceWidget.h>
 #include <ctkSliderWidget.h>
+#include <vtkMRMLCrosshairNode.h>
 
 class qSlicerCIVM_AdultRatPGRModuleWidgetPrivate;
 class vtkCollection;
@@ -115,6 +116,7 @@ public:
  protected:
   QScopedPointer<qSlicerCIVM_AdultRatPGRModuleWidgetPrivate> d_ptr;
   virtual void setup();
+/*   vtkMRMLCrosshairNode RegionMarker; */
                             
 
  private:
