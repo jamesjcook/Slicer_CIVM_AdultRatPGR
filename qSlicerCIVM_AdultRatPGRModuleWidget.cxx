@@ -142,11 +142,25 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   /* hardcode for now*/
   /* data is at /DataPath/{timepoint}/average/p{timepoint}_average_{contrast}.nii  */
   /* labels are at /DataPath/labels/completed/completed_good_header/nii/           */
-  
+  this->DataRoot=QString("/ratdevatlas");
   this->DataPath=QString("/ratdevatlas/timepoint/average/");
   this->LabelPath=QString("/ratdevatlas/labels/completed/completed_good_header/nii/");
   //  this->DataPattern  << "p"   << "timepoint" << "_average_" << "contrast" << ".nii";
   //  this->LabelPattern << "pnd" << "timepoint" << "_average_labels.nii";
+
+  // using this mrml to initalize the 3d views for now, and then set to the first gallery setup.
+  QString out_path = "";//DataRoot+"/DoubleBlank.mrml";
+  // example for replacment to fix the blank not loading.
+//   imageFile.replace("timepoint",timepointList[t]);
+//   imageFile.replace("contrast",contrastList[c]);
+//   //confusingly DataPath is root to data directories
+//   imagePath = DataPath+imageFile;
+//   imagePath.replace("timepoint",timepointList[t]);
+
+  qSlicerApplication * app = qSlicerApplication::application();
+//  app->ioManager()->loadScene(out_path);
+  out_path = DataRoot+"/Blank.mrml";
+  app->ioManager()->loadScene(out_path);  
 
   //this->DataPattern  =QString("ptimepoint_average_contrast.nii");
   this->DataPattern  =QString("ptimepoint_average_contrast.nii");
@@ -160,19 +174,23 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   d->ComboBoxA->insertItems(0, ImageContrasts );
   d->ComboBoxB->insertItems(0, ImageContrasts );
 
-  d->ComboBoxA->setDefaultText("Select Sagittal/Image1 Contrast");
-  d->ComboBoxB->setDefaultText("Select Axial/Image2 Contrast");
+//  d->ComboBoxA->setDefaultText("Select Sagittal/Image1 Contrast");
+//  d->ComboBoxB->setDefaultText("Select Axial/Image2 Contrast");
+
+  d->ComboBoxA->setDefaultText("First Contrast");
+  d->ComboBoxB->setDefaultText("Second Contrast");
+
 
   d->ComboBoxA->setCurrentIndex(-1);
   d->ComboBoxB->setCurrentIndex(-1);
 
   //insert button connections here.
   connect(d->HistologySelector,SIGNAL(clicked()),SLOT(HistologySelectionDialog()));
-  connect(d->BuildSceneButton,SIGNAL(clicked()),SLOT(BuildScene()));
+  connect(d->BuildSceneButton,SIGNAL(clicked()),SLOT(BuildScene()));//the restviewer button.
   connect(d->WatchMousePositionCheckBox,SIGNAL(clicked()),SLOT(SetMouseWatcherStatus()));
   //insert drop down connections here.
-  connect(d->ComboBoxA,SIGNAL(currentIndexChanged(int)),SLOT(BuildScene()));
-  connect(d->ComboBoxB,SIGNAL(currentIndexChanged(int)),SLOT(BuildScene()));
+  connect(d->ComboBoxA,SIGNAL(currentIndexChanged(int)),SLOT(LoadData()));
+  connect(d->ComboBoxB,SIGNAL(currentIndexChanged(int)),SLOT(LoadData()));
   //Connect our slice slider here.
   connect(d->SliderSlice, SIGNAL(valueChanged(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
   connect(d->SliderAngle, SIGNAL(valueChanged(double)), SLOT(SetSliceGeometry(double)), Qt::QueuedConnection);
@@ -358,9 +376,22 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::HistologySelectionDialog()
     }
   out << "\n";  
   //qSlicerApplication::application()->ioManager()->openLoadSceneDialog();// change dialog to just add the scene.
-
+  
+  // always buildsecene after selecting file.
+  this->BuildScene();
   return ;
 }
+
+
+//-----------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::LoadData()
+{
+  //todo fix this stupid hack and separte the load_data and buildscene functions.
+  this->BuildScene();
+  this->BuildScene();
+  return;
+}
+
 //-----------------------------------------------------------------------------
 // build mrml and load datasests
 void qSlicerCIVM_AdultRatPGRModuleWidget::BuildScene()
@@ -990,15 +1021,20 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
       {
       this->PrintText("Un-setting crosshair");
       cNode->SetCrosshairMode(vtkMRMLCrosshairNode::NoCrosshair);
-      //vtkMRMLSelectionNode *selectionNode = d->MRMLAppLogic->GetSelectionNode();
       vtkMRMLInteractionNode *interactionNode =
         this->logic()->GetMRMLApplicationLogic() ? this->logic()->GetMRMLApplicationLogic()->GetInteractionNode() : 0;
-      if (interactionNode)
+      vtkMRMLSelectionNode *selectionNode = this->logic()->GetMRMLApplicationLogic()->GetSelectionNode();//= d->MRMLAppLogic->GetSelectionNode();
+      if (interactionNode&& selectionNode)
+        {
         interactionNode->SwitchToSinglePlaceMode();
+        selectionNode->SetReferenceActivePlaceNodeClassName(NULL);
+        }
       else
+        {
         this->PrintText("couldnt get interaction node to set placement mode on");
-      }
-    }
+        } // end interactionnode exists check
+      }//end rosshairnode exists check
+    }// end turn off visible crosshair and fiducial placement. 
   else // our status is true, therefore we should be watching the mouse position.
     {
     // Add observers
@@ -1041,7 +1077,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
   this->setPersistence(status);// sets our persistence to follow our checkbox, 
   vtkMRMLInteractionNode *interactionNode =
     this->logic()->GetMRMLApplicationLogic() ? this->logic()->GetMRMLApplicationLogic()->GetInteractionNode() : 0;
-  interactionNode->SwitchToPersistentPlaceMode();
+  //interactionNode->SwitchToPersistentPlaceMode();
   if (interactionNode)
     {
     interactionNode->SetCurrentInteractionMode(vtkMRMLInteractionNode::Place);
@@ -1335,7 +1371,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
    
    if ( ! interactorStyle ) 
      {
-     this->PrintText("returning for not interactor");
+     this->PrintText("Not Interactor");
      if ( eventId == vtkMRMLMarkupsNode::MarkupAddedEvent) 
        {
        this->PrintText("markup added" ); 
@@ -1505,7 +1541,8 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
            vtkMRMLColorNode * colorNode = scalarVolumeNode->GetDisplayNode()->GetColorNode();
            labelName = colorNode->GetColorName(static_cast<int>(labelIndex));
            this->LastLabelName=labelName;
-           this->PrintText(QString("LastLabelName is "+QString::fromStdString(labelName)));
+           // highly verbose debug print. Disabled for produciton.
+           //this->PrintText(QString("LastLabelName is "+QString::fromStdString(labelName)));
             
            QString valueAsString;
            QStringList valueAsStrings;

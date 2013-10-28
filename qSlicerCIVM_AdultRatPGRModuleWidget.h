@@ -61,7 +61,8 @@ public:
   QStringList SceneNodes;     // list of nodes in the scene, this could probably be a protected variable.
   QString HistologyNodeName;  // name ot the histology node.
   QString Layout;             //String name of the layout to use.
-  QString DataPath;           //path to data set in the setup function, will have to be
+  QString DataRoot;           //path to data set in the setup function. 
+  QString DataPath;           //path to data set in the setup function.
   QString LabelPath;          //see datapath.
   QString DataPattern;        //pattern for data file to have parts replacd wit actual contrast and timepoint information.
   QString LabelPattern;       //see datapattern
@@ -97,6 +98,7 @@ public:
   //  void IncrimentSlider(ctkSliderWidget * );     // incrimentslider
   //  void DecrimentSlider(ctkSliderWidget * );     // decrimentslider
   void BuildScene();          //sets up mrml nodes loads data
+  void LoadData();          //sets up mrml nodes loads data
   bool NodeExists(QString);   // checks scene for existing node with given name. Used in the build scene fucntion to avoid reloading data.
   QStringList GetContrasts();    // will look up all the checkboxes in contrasts group and make a qstringlist of values
   void SetViewNodeProperties(QString); //Sets the view properties for a given view node string

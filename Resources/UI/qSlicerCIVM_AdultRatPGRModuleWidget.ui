@@ -21,13 +21,6 @@
        <number>0</number>
       </property>
       <item>
-       <widget class="ctkPushButton" name="HistologySelector">
-        <property name="text">
-         <string>Select Histology File</string>
-        </property>
-       </widget>
-      </item>
-      <item>
        <widget class="QFrame" name="SliderFrame">
         <property name="frameShape">
          <enum>QFrame::StyledPanel</enum>
@@ -39,6 +32,80 @@
          <property name="margin">
           <number>2</number>
          </property>
+         <item>
+          <widget class="QFrame" name="contrastSelectFrame">
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Plain</enum>
+           </property>
+           <layout class="QHBoxLayout" name="horizontalLayout">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>2</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>2</number>
+            </property>
+            <item>
+             <widget class="QFrame" name="frameA">
+              <property name="frameShape">
+               <enum>QFrame::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Raised</enum>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_5">
+               <property name="margin">
+                <number>2</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="labelComboBoxA">
+                 <property name="text">
+                  <string>Sagittal Image</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="ctkComboBox" name="ComboBoxA"/>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="frameB">
+              <property name="frameShape">
+               <enum>QFrame::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Raised</enum>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_6">
+               <property name="margin">
+                <number>2</number>
+               </property>
+               <item>
+                <widget class="QLabel" name="labelComboBoxB">
+                 <property name="text">
+                  <string>Axial Image</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="ctkComboBox" name="ComboBoxB"/>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
          <item>
           <widget class="QLabel" name="labelSliderSlice">
            <property name="text">
@@ -83,77 +150,10 @@
        </widget>
       </item>
       <item>
-       <widget class="QFrame" name="contrastSelectFrame">
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
+       <widget class="ctkPushButton" name="HistologySelector">
+        <property name="text">
+         <string>Select Histology File</string>
         </property>
-        <property name="frameShadow">
-         <enum>QFrame::Plain</enum>
-        </property>
-        <layout class="QHBoxLayout" name="horizontalLayout">
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>2</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>2</number>
-         </property>
-         <item>
-          <widget class="QFrame" name="frameA">
-           <property name="frameShape">
-            <enum>QFrame::StyledPanel</enum>
-           </property>
-           <property name="frameShadow">
-            <enum>QFrame::Raised</enum>
-           </property>
-           <layout class="QVBoxLayout" name="verticalLayout_5">
-            <property name="margin">
-             <number>2</number>
-            </property>
-            <item>
-             <widget class="QLabel" name="labelComboBoxA">
-              <property name="text">
-               <string>Sagittal Image</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="ctkComboBox" name="ComboBoxA"/>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item>
-          <widget class="QFrame" name="frameB">
-           <property name="frameShape">
-            <enum>QFrame::StyledPanel</enum>
-           </property>
-           <property name="frameShadow">
-            <enum>QFrame::Raised</enum>
-           </property>
-           <layout class="QVBoxLayout" name="verticalLayout_6">
-            <property name="margin">
-             <number>2</number>
-            </property>
-            <item>
-             <widget class="QLabel" name="labelComboBoxB">
-              <property name="text">
-               <string>Axial Image</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="ctkComboBox" name="ComboBoxB"/>
-            </item>
-           </layout>
-          </widget>
-         </item>
-        </layout>
        </widget>
       </item>
       <item>
