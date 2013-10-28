@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>853</width>
-    <height>539</height>
+    <height>544</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,7 +18,7 @@
     <widget class="ctkSettingsPanel" name="SettingsPanel">
      <layout class="QVBoxLayout" name="verticalLayout_4">
       <property name="margin">
-       <number>2</number>
+       <number>0</number>
       </property>
       <item>
        <widget class="ctkPushButton" name="HistologySelector">
@@ -168,78 +168,81 @@
         <property name="text">
          <string>Points of interest.</string>
         </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
         <layout class="QVBoxLayout" name="verticalLayout_3">
-         <property name="margin">
-          <number>2</number>
-         </property>
-        </layout>
-       </widget>
-      </item>
-      <item>
-       <widget class="QFrame" name="LabelwatcherControlsFrame">
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Plain</enum>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout_8">
          <property name="margin">
           <number>0</number>
          </property>
          <item>
-          <widget class="QFrame" name="StructureNameFrame">
+          <widget class="QFrame" name="LabelwatcherControlsFrame">
            <property name="frameShape">
             <enum>QFrame::NoFrame</enum>
            </property>
            <property name="frameShadow">
             <enum>QFrame::Plain</enum>
            </property>
-           <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <layout class="QVBoxLayout" name="verticalLayout_8">
             <property name="margin">
              <number>0</number>
             </property>
             <item>
-             <widget class="ctkCheckBox" name="WatchMousePositionCheckBox">
-              <property name="text">
-               <string>Show label at cursor.</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLabel" name="StructureName">
-              <property name="text">
-               <string/>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-         </item>
-         <item>
-          <widget class="QFrame" name="FiduicialListFrame">
-           <property name="frameShape">
-            <enum>QFrame::NoFrame</enum>
-           </property>
-           <property name="frameShadow">
-            <enum>QFrame::Plain</enum>
-           </property>
-           <layout class="QVBoxLayout" name="verticalLayout_7">
-            <property name="margin">
-             <number>0</number>
-            </property>
-            <item>
-             <widget class="ctkPushButton" name="ClearFiducialList">
-              <property name="text">
-               <string>Clear Fiducial List</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QListWidget" name="FiducialList">
+             <widget class="QFrame" name="StructureNameFrame">
               <property name="frameShape">
                <enum>QFrame::NoFrame</enum>
               </property>
+              <property name="frameShadow">
+               <enum>QFrame::Plain</enum>
+              </property>
+              <layout class="QHBoxLayout" name="horizontalLayout_3">
+               <property name="margin">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="ctkCheckBox" name="WatchMousePositionCheckBox">
+                 <property name="text">
+                  <string>Show label at cursor.</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="StructureName">
+                 <property name="text">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="FiduicialListFrame">
+              <property name="frameShape">
+               <enum>QFrame::NoFrame</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Plain</enum>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_7">
+               <property name="margin">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="ctkPushButton" name="ClearFiducialList">
+                 <property name="text">
+                  <string>Clear Fiducial List</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QListWidget" name="FiducialList">
+                 <property name="frameShape">
+                  <enum>QFrame::NoFrame</enum>
+                 </property>
+                </widget>
+               </item>
+              </layout>
              </widget>
             </item>
            </layout>

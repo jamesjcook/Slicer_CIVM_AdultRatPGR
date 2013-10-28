@@ -39,12 +39,23 @@ set(MODULE_UI_SRCS
 set(MODULE_TARGET_LIBRARIES
   vtkSlicer${MODULE_NAME}ModuleLogic
   qSlicer${MODULE_NAME}ModuleWidgets
+  vtkSlicerMarkupsModuleMRML
   )
 
 set(MODULE_RESOURCES
   Resources/qSlicer${MODULE_NAME}Module.qrc
   )
 
+
+link_directories(/Applications/SegmentationSoftware/build/Slicer_multi/release_v4.3.1/Slicer-build/lib/Slicer-4.3/qt-loadable-modules/)
+#libvtkSlicerMarkupsModuleMRML.dylib
+# add fiducial library in markups
+#add_library( release_v4.3.1/Slicer-build/lib/Slicer-4.3/qt-loadable-modul
+add_library( libvtkSlicerMarkupsModuleMRML SHARED IMPORTED )
+#${CMAKE_BINARY_DIR}
+set_target_properties( libvtkSlicerMarkupsModuleMRML PROPERTIES IMPORTED_LOCATION ($CMAKE_BINARY_DIR ) )
+#TARGET_LINK_LIBRARIES( qSlicer${MODULE_NAME}ModuleWidgets libvtkSlicerMarkupsModuleMRML)
+#TARGET_LINK_LIBRARIES( vtkSlicer${MODULE_NAME}ModuleLogic libvtkSlicerMarkupsModuleMRML)
 #-----------------------------------------------------------------------------
 slicerMacroBuildQtModule(
   NAME ${MODULE_NAME}

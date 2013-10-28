@@ -26,7 +26,7 @@
 #include <qMRMLSliceWidget.h>
 #include <ctkSliderWidget.h>
 #include <vtkMRMLCrosshairNode.h>
-
+#include <vtkMRMLMarkupsNode.h>
 class qSlicerCIVM_AdultRatPGRModuleWidgetPrivate;
 class vtkCollection;
 //class vtkMRMLNode;
@@ -112,17 +112,26 @@ public:
                             void* callData,
                             unsigned long eventId,
                             void* clientData);
-  
+  void onDeleteAllMarkupsInListPushButtonClicked();
  protected:
   QScopedPointer<qSlicerCIVM_AdultRatPGRModuleWidgetPrivate> d_ptr;
   virtual void setup();
 /*   vtkMRMLCrosshairNode RegionMarker; */
-                            
-
+  void setPersistence(bool);
+  bool FiducialPlacement;
+  bool ReadMousePosition;
+  int NumberOfFiducials;
  private:
   Q_DECLARE_PRIVATE(qSlicerCIVM_AdultRatPGRModuleWidget);
   Q_DISABLE_COPY(qSlicerCIVM_AdultRatPGRModuleWidget);
   qMRMLSliceWidget * SlicerWidget(vtkInteractorObserver * ) ;
+   double * cLastRAS; 
+   double * cLastXYZ; 
+   double * cLastIJK; 
+  std::string LastLabelName; 
+  void OnMRMLSceneNodeAdded(vtkMRMLNode  *);
+  vtkMRMLNode * CurrentLabelVolume;
+  vtkMRMLNode * CurrentSliceLayerLogic;
 };
 
 #endif

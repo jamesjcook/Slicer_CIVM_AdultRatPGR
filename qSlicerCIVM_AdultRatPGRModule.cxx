@@ -70,14 +70,14 @@ QString qSlicerCIVM_AdultRatPGRModule::helpText()const
 //-----------------------------------------------------------------------------
 QString qSlicerCIVM_AdultRatPGRModule::acknowledgementText()const
 {
-  return "This work was was partially funded by NIH grant 3P41RR013218-12S1";
+  return "This work was was partially funded by NIH grant ";
 }
 
 //-----------------------------------------------------------------------------
 QStringList qSlicerCIVM_AdultRatPGRModule::contributors()const
 {
   QStringList moduleContributors;
-  moduleContributors << QString("Jean-Christophe Fillion-Robin (Kitware)");
+  moduleContributors << QString("James Cook (CIVM).");
   return moduleContributors;
 }
 
@@ -90,7 +90,7 @@ QIcon qSlicerCIVM_AdultRatPGRModule::icon()const
 //-----------------------------------------------------------------------------
 QStringList qSlicerCIVM_AdultRatPGRModule::categories() const
 {
-  return QStringList() << "Examples";
+  return QStringList() << "Work in Progress";
 }
 
 //-----------------------------------------------------------------------------

@@ -25,8 +25,6 @@
 
 // SlicerQt includes
 #include "qSlicerApplication.h"
-
-
 #include "qSlicerLayoutManager.h"
 #include "qSlicerIOManager.h"
 
@@ -59,9 +57,24 @@
 #include <ctkPimpl.h>
 #include <ctkSliderWidget.h>
 #include <ctkVTKSliceView.h>
+#include "ctkMessageBox.h"
+
 #include <vtkTransform.h>
+//#include "/Applications/SegmentationSoftware/src/Slicer_multi/modules_comp/Slicer/Modules/Loadable/Markups/Logic/"vtkSliceMarkupsLogic.h
+#include <vtkSlicerMarkupsLogic.h>
 #include "vtkMRMLApplicationLogic.h"
 #include "vtkEventForwarderCommand.h"
+#include <vtkMRMLInteractionNode.h>
+#include <vtkMRMLSelectionNode.h>
+#include <vtkMRMLMarkupsNode.h>
+//#include <vtkSlicerMarkupsModule.h>
+//#include "vtkMRMLMarkupsNode.h"
+#include "/Applications/SegmentationSoftware/src/Slicer_multi/release_v4.3.1/Slicer/Modules/Loadable/Markups/MRML/vtkMRMLMarkupsNode.h"
+#include <vtkMRMLMarkupsFiducialNode.h>
+#include <vtkMRMLMarkupsStorageNode.h>
+//#include <qSlicerMarkupsModule.h>
+// #include <vtkMRMLFiducial.h>
+#include <vtkMRMLAnnotationFiducialNode.h>
 
 //-----------------------------------------------------------------------------
 /// \ingroup Slicer_QtModules_ExtensionTemplate
@@ -113,24 +126,17 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   this->Layout=QString("PGR");
   this->GalleryName="CIVM_AdultRatAtlas";
   this->CenterVolumeOnLoad=true;
-  this->Priority=2;
-//   this->RegionMarker=vtkMRMLCrosshairNode(this->mrmlScene);
-//   double sliderPos[2];
-//   sliderPos[0]=0;
-//   sliderPos[1]=0;
-//   this->Pos=sliderPos;
-
-//   double SliderAngle[4];
-//   this->Angle=SliderAngle;
-//   Angle[0]=0;
-//   Angle[1]=0;
-//   Angle[2]=0;
-//   Angle[3]=0;
-
-//  this->SlicePointer=0;
-   this->Angle=0;
-   this->Pos=0;
-   this->LoadLabels=true;
+//  this->Priority=2;
+  this->NumberOfFiducials=0;
+  //Create the markups list F here before we get below so we know its on and added to the scene.
+  double var[3] = {1, 1, 1 };
+  this->LastLabelName="";
+//  this->cLastRAS=var;
+//  this->cLastIJK=var;
+//  this->cLastXYZ=var;
+  this->Angle=0;
+  this->Pos=0;
+  this->LoadLabels=true;
   
   /* Load data paths */
   /* hardcode for now*/
@@ -149,10 +155,8 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   d->LabelInformation->setCollapsed(true);
   //Timepoint=80; using the same code as our time/contrast bit so we can switch between timepoints for more rapid testing.
   // see the buildscene function for the list of times allowed.
-  ImageContrasts << "ad" << "adc" << "b0" << "dwi" << "fa" << "fa_color"  << "freq_16" << "gre_16" << "rd";
+  ImageContrasts << "ad" << "adc" << "b0" << "dwi" << "fa" << "fa_color"  << "freq" << "gre" << "rd";
   
-  //  void QComboBox::setItemText ( int index, const QString & text )
-  //  void QComboBox::insertItems ( int index, const QStringList & list )
   d->ComboBoxA->insertItems(0, ImageContrasts );
   d->ComboBoxB->insertItems(0, ImageContrasts );
 
@@ -172,12 +176,10 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setup()
   //Connect our slice slider here.
   connect(d->SliderSlice, SIGNAL(valueChanged(double)), SLOT(SetSliceOffsetValue(double)), Qt::QueuedConnection);
   connect(d->SliderAngle, SIGNAL(valueChanged(double)), SLOT(SetSliceGeometry(double)), Qt::QueuedConnection);
+  // QObject::connect(this->deleteAllMarkupsInListPushButton, SIGNAL(clicked()),
+//                    q, SLOT(onDeleteAllMarkupsInListPushButtonClicked()));
+   connect(d->ClearFiducialList, SIGNAL(clicked()),SLOT(onDeleteAllMarkupsInListPushButtonClicked()));
 
-  //  connect(d, SIGNAL(mrmlSceneChanged(vtkMRMLScene*)), d->SliderSlice, SLOT(setMRMLScene(vtkMRMLScene*)));
-  //  connect(d->SettingsPanel,SIGNAL(initalized()),SLOT(BuildScene())); // there is no initalized settings! :p
-  //  this->BuildScene(); cannot simply call functions in here befcause the class is not set up yet.
-
-  //this->SliceOffsetSlider = new qMRMLSliderWidget(q);
   d->SliderSlice->setTracking(true);
 }
 
@@ -874,9 +876,9 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::setSliceLogic(vtkMRMLSliceLogic * newS
 
   d->SliceLogic = newSliceLogic;
 
-  if (d->SliceLogic && d->SliceLogic->GetMRMLScene())
+  if (d->SliceLogic && d->SliceLogic->mrmlScene())
     {
-      this->setMRMLScene(d->SliceLogic->GetMRMLScene());
+      this->setMRMLScene(d->SliceLogic->mrmlScene());
     }
 
   d->onSliceLogicModifiedEvent();
@@ -952,82 +954,52 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
   QList<vtkInteractorObserver*> interactorStyles;
   int crosshairBehavior=0;
 
-
+  // this finds the interactor styles
   foreach(const QString& sliceViewName, layoutManager->sliceViewNames())
     {
     qMRMLSliceWidget * sliceWidget = layoutManager->sliceWidget(sliceViewName);
-    Q_ASSERT(sliceWidget);
+//    Q_ASSERT(sliceWidget);
     interactorStyles << sliceWidget->sliceView()->interactorStyle();
     }
-
-//qSlicerViewersToolBar
-//   vtkMRMLApplicationLogic *mrmlAppLogic = this->logic()->GetMRMLApplicationLogic();
-//   qSlicerViewersToolBar * toolBar = NULL ;
-//   toolBar = this->mrmlScene()->GetNextNodeByClass("qSlicerViewersToolBar"); // qSlicerViewersToolBar::SafeDownCast(); //vtkMRMLCrosshairNode"));
-  
-//   if ( ! toolBar )  
-//     {
-//     this->PrintText("Could not get the tool bar node to set the crosshair button");
-//     this->mrmlScene()->PrintSelf();
-//     }
 
   this->mrmlScene()->InitTraversal();
   vtkMRMLCrosshairNode *  cNode = NULL; 
   cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
-//   QList<vtkMRMLCrosshairNode> * cNodes = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNodesByClass("vtkMRMLCrosshairNode"));  
-//   cNode->GetItemAsObject(0);
-   if ( ! cNode) 
-     {
-     this->PrintText("failed to retrieve crosshair");
-     return;
-     }
-//   int numberCrosshairNodes = 0; 
-//   numberCrosshairNodes = this->mrmlScene()->GetNumberOfNodesByClass("vtkMRMLCrosshairNode");
-//   if (numberCrosshairNodes == 0 )  
-//     {
-//     this->PrintText("No crosshair nodes found");
-//     d->WatchMousePositionCheckBox->setChecked(false);
-//     this->SetMouseWatcherStatus();
-//     return;
-//     } 
-//   else
-//     {
-//    this->mrmlScene()->InitTraversal();
-//     cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
-//     test << "Number of crosshair nodes :" << numberCrosshairNodes << "\n";
-//     if ( ! cNode) 
-//       {
-//       this->PrintText ("Couldnt get crosshair node with getnextnode");
-//       cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNodesByClass("vtkMRMLCrosshairNode"));
-//       if ( ! cNode) 
-//         {
-//         this->PrintText ("Couldnt get crosshair node with getnodes");
-//         return;
-//         }
-//       }
-//     }
+  if ( ! cNode) 
+    {
+    this->PrintText("failed to retrieve crosshair");
+    return;
+    }
 
-  if ( ! status )
+  if ( ! status ) //if we're not watching the mouse position.
     {
     this->PrintText("Disconnect");
     // Remove observers
     foreach(vtkInteractorObserver * observedInteractorStyle, d->ObservedInteractorStyles)
       {
+      //vtkCommand::LeftButtonReleaseEvent:
       foreach(int event, QList<int>()
-              << vtkCommand::MouseMoveEvent << vtkCommand::EnterEvent << vtkCommand::LeaveEvent)
+              << vtkCommand::MouseMoveEvent << vtkCommand::EnterEvent << vtkCommand::LeaveEvent << vtkMRMLMarkupsNode::MarkupAddedEvent) //LeftButtonReleaseEvent
         {
         qvtkDisconnect(observedInteractorStyle, event,
                        this, SLOT(ProcessEvent(vtkObject*,void*,ulong,void*)));
         }
       }
     d->ObservedInteractorStyles.clear();
-    if (cNode)
+    if (cNode) // if the crosshair node exists in the scene, turn off its display.
       {
       this->PrintText("Un-setting crosshair");
       cNode->SetCrosshairMode(vtkMRMLCrosshairNode::NoCrosshair);
+      //vtkMRMLSelectionNode *selectionNode = d->MRMLAppLogic->GetSelectionNode();
+      vtkMRMLInteractionNode *interactionNode =
+        this->logic()->GetMRMLApplicationLogic() ? this->logic()->GetMRMLApplicationLogic()->GetInteractionNode() : 0;
+      if (interactionNode)
+        interactionNode->SwitchToSinglePlaceMode();
+      else
+        this->PrintText("couldnt get interaction node to set placement mode on");
       }
     }
-  else
+  else // our status is true, therefore we should be watching the mouse position.
     {
     // Add observers
     this->PrintText("Connect");
@@ -1035,7 +1007,7 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
     foreach(vtkInteractorObserver * interactorStyle, interactorStyles)
       {
       foreach(int event, QList<int>()
-              << vtkCommand::MouseMoveEvent << vtkCommand::EnterEvent << vtkCommand::LeaveEvent)
+              << vtkCommand::MouseMoveEvent << vtkCommand::EnterEvent << vtkCommand::LeaveEvent << vtkMRMLMarkupsNode::MarkupAddedEvent) //LeftButtonReleaseEvent
         {
         test<<"+";
         qvtkConnect(interactorStyle, event,
@@ -1044,59 +1016,104 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus()
       d->ObservedInteractorStyles << interactorStyle;
       }
     test << ".\n";
-    
-    if (cNode)
+    if (cNode) // if the crosshair node exists in the scene, turn on its display, and change its settings to our desired settings.
       {
       this->PrintText("Setting Crosshair");
       cNode->SetCrosshairToFine();
       cNode->SetCrosshairMode(vtkMRMLCrosshairNode::ShowBasic);
+      vtkMRMLInteractionNode *interactionNode =
+        this->logic()->GetMRMLApplicationLogic() ? this->logic()->GetMRMLApplicationLogic()->GetInteractionNode() : 0;
+      vtkMRMLSelectionNode *selectionNode = this->logic()->GetMRMLApplicationLogic()->GetSelectionNode();
+      if (interactionNode && selectionNode)
+        {
+        selectionNode->SetReferenceActivePlaceNodeClassName("vtkMRMLMarkupsFiducialNode");
+        interactionNode->SetCurrentInteractionMode(vtkMRMLInteractionNode::Place);
+        }
+      else
+        this->PrintText("couldnt get interaction node to set placement mode on");
       }  
+//     //connect nodeadded event to something...
+//      vtkIntArray *events;
+//      events->InsertNextValue(vtkMRMLScene::NodeAddedEvent);
+//      this->logic()->SetAndObserveMRMLSceneEvents(this->mrmlScene(), events);
     }
-
-
-//   // pulled from qSlicerViewersToolBar::setCrosshairMode(bool mode)
-//   vtkSmartPointer<vtkCollection> nodes;
-//   nodes.TakeReference(this->mrmlScene()->GetNodesByClass("vtkMRMLCrosshairNode"));
-//   if (!nodes.GetPointer())
-//     {
-//     this->PrintText("Failed to get the node pointer to the crosshair.");
-//     return;
-//     }
-//   vtkMRMLCrosshairNode* node = 0;
-//   vtkCollectionSimpleIterator it;
-//   for (nodes->InitTraversal(it);(node = static_cast<vtkMRMLCrosshairNode*>(
-//                                    nodes->GetNextItemAsObject(it)));)
-//     {
-// //     if (crosshairBehavior)
-// //       {
-//     this->PrintText("setcrosshairbehavior");
-//       node->SetCrosshairMode(crosshairBehavior);
-// //       }
-// //     else
-// //       {
-// //       this->PrintText("No crosshairmode");
-// //       node->SetCrosshairMode(vtkMRMLCrosshairNode::NoCrosshair);
-// //       }
-//     }
-
-  foreach(const QString& sliceViewName, layoutManager->sliceViewNames())
+  // set placement to on fiducial.
+  this->setPersistence(status);// sets our persistence to follow our checkbox, 
+  vtkMRMLInteractionNode *interactionNode =
+    this->logic()->GetMRMLApplicationLogic() ? this->logic()->GetMRMLApplicationLogic()->GetInteractionNode() : 0;
+  interactionNode->SwitchToPersistentPlaceMode();
+  if (interactionNode)
     {
-    qMRMLSliceWidget * sliceWidget = layoutManager->sliceWidget(sliceViewName);
-    //Q_ASSERT(sliceWidget);
-//     const qMRMLSliceView * sView =sliceWidget->sliceView(); // qMRMLSliceView::SafeDownCast();
-//     sView->StartModify();
-//     sView->EndModify(false);
-    vtkMRMLSliceNode * sNode =sliceWidget->mrmlSliceNode(); // qMRMLSliceView::SafeDownCast();
-    sNode->StartModify();
-    sNode->EndModify(false);
-
+    interactionNode->SetCurrentInteractionMode(vtkMRMLInteractionNode::Place);
+    if ( interactionNode->GetPlaceModePersistence())
+      {
+      this->PrintText("Set interaction node, perstience on");
+      }
+    else
+      this->PrintText("Set interaction node, perstience off");
     }
-
-
   this->PrintText("SetMouseWatcherSuccess");
   return;
 }
+//---------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::OnMRMLSceneNodeAdded(vtkMRMLNode * addedNode)//SetAndObserveMRMLSceneEvents
+{// this never gets called, not sure how to set that up, triyng to avoid it for now. 
+  vtkMRMLMarkupsFiducialNode* fidNode =
+    vtkMRMLMarkupsFiducialNode::SafeDownCast(addedNode);
+  if (fidNode)
+    {
+    // here you write what you need to do when a 
+    // fiducial node is added into the scene
+    this->PrintText("mrmlsceneadded Added fiducialnode");
+    
+//     void vtkMRMLMarkupsFiducialNode::SetNthFiducialLabel
+    for(int fN=0;fN<this->mrmlScene()->GetNumberOfNodesByClass("vtkMRMLAnnotationiducialNode");fN++)
+      {
+//       double xyz[4];
+//       fidNode->GetNthFiducialPosition(fN,xyz);
+// //       fidNode->GetMarkupPointWorld(fN,0,xyz);
+//       vtkMRMLSliceLayerLogic * sliceLayerLogic = vtkMRMLSliceLayerLogic::SafeDownCast(this->CurrentSliceLayerLogic);
+//       vtkMatrix4x4 * xyToIJK = sliceLayerLogic->GetXYToIJKTransform()->GetMatrix();
+//       double xyzw[4] = {xyz[0], xyz[1], xyz[2], 1.0};
+//       double ijkw[4] = {0.0, 0.0, 0.0, 0.0};
+//       xyToIJK->MultiplyPoint(xyzw, ijkw);
+//       //Q_ASSERT(ijkw[3] == 1.0);
+//       QList<double> ijk ;
+//       ijk << ijkw[0] <<  ijkw[1] <<  ijkw[2];
+//       vtkMRMLScalarVolumeNode * scalarVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(this->CurrentLabelVolume);
+//       vtkImageData * imageData = scalarVolumeNode->GetImageData();
+//       double labelIndex = imageData->GetScalarComponentAsDouble(ijkw[0],ijkw[1],ijkw[2],0); //ijkw[3]);
+//       vtkMRMLColorNode * colorNode = scalarVolumeNode->GetDisplayNode()->GetColorNode();
+//       std::string labelName = colorNode->GetColorName(static_cast<int>(labelIndex));
+//       std::string labelName = "test";      
+//       fidNode->SetNthFiducialLabel(fN,labelName);
+      // fidNode->SetNthMarkupLabel(fN,labelName);
+      }
+    }
+  else
+    {
+    this->PrintText("OnMRMLScenENodeAdded");
+    }
+}
 
+// pulled from qSlicerMouseModeToolBar, used in setmousewatcher
+//---------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::setPersistence(bool persistent)
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
+//this->logic()->GetMRMLApplicationLogic()
+  vtkMRMLInteractionNode *interactionNode =
+    this->logic()->GetMRMLApplicationLogic() ? this->logic()->GetMRMLApplicationLogic()->GetInteractionNode() : 0;
+
+  if (interactionNode)
+    {
+    interactionNode->SetPlaceModePersistence(persistent ? 1 : 0);
+    }
+  else
+    {
+    qWarning() << __FUNCTION__ << ": no interaction node found to toggle.";
+    }
+}
 //------------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus_old()
 {
@@ -1286,11 +1303,12 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::SetMouseWatcherStatus_old()
 }
 //-----------------------------------------------------------------------------
 qMRMLSliceWidget * qSlicerCIVM_AdultRatPGRModuleWidget::SlicerWidget(vtkInteractorObserver * interactorStyle) //const
-{
+{ // simple function to return the SliceWidget assigned to an interactorStyle
   if (!qSlicerApplication::application()->layoutManager()) 
     {
     return 0;
     }
+  // this loop runs through all slice views in the layout and stops when we find the interactor style
   foreach(const QString& sliceViewName, qSlicerApplication::application()->layoutManager()->sliceViewNames())
     {
     qMRMLSliceWidget * sliceWidget = qSlicerApplication::application()->layoutManager()->sliceWidget(sliceViewName);
@@ -1302,6 +1320,7 @@ qMRMLSliceWidget * qSlicerCIVM_AdultRatPGRModuleWidget::SlicerWidget(vtkInteract
     }
   return 0;
 }
+
 //------------------------------------------------------------------------------
 void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* callData, unsigned long eventId, void* clientData) 
  {
@@ -1310,298 +1329,322 @@ void qSlicerCIVM_AdultRatPGRModuleWidget::ProcessEvent(vtkObject* sender, void* 
 //   this->PrintMethod("ProcessEvent");
    Q_UNUSED(callData);
    Q_UNUSED(clientData);
+   QTextStream test(stdout);   
 
    vtkInteractorObserver * interactorStyle = vtkInteractorObserver::SafeDownCast(sender);
+   
    if ( ! interactorStyle ) 
      {
-     return;
-     }
+     this->PrintText("returning for not interactor");
+     if ( eventId == vtkMRMLMarkupsNode::MarkupAddedEvent) 
+       {
+       this->PrintText("markup added" ); 
+       this->ReadMousePosition=false;
+       }
+     } else {
+   this->ReadMousePosition=true;
+   }
    Q_ASSERT(d->ObservedInteractorStyles.indexOf(interactorStyle) != -1);
-   vtkRenderWindowInteractor * interactor = interactorStyle->GetInteractor();
-   if(eventId == vtkCommand::EnterEvent || eventId == vtkCommand::MouseMoveEvent)
+//   vtkRenderWindowInteractor * interactor = interactorStyle->GetInteractor();
+   if(eventId == vtkCommand::EnterEvent || eventId == vtkCommand::MouseMoveEvent || vtkMRMLMarkupsNode::MarkupAddedEvent) //LeftButtonReleaseEvent
      {
+     if(eventId == vtkCommand::EnterEvent) 
+       { 
+       this->FiducialPlacement=true;
+       this->ReadMousePosition=true;
+       this->mrmlScene()->InitTraversal();
+       vtkMRMLMarkupsFiducialNode * markupsNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(
+         this->mrmlScene()->GetNextNodeByClass("vtkMRMLMarkupsFiducialNode"));
+       this->qvtkConnect(markupsNode, vtkMRMLMarkupsNode::MarkupAddedEvent,
+                         this, SLOT(ProcessEvent(vtkObject*,void*,ulong,void*)));
+
+//         qvtkConnect(interactoStyle, event,
+//                     this, SLOT(ProcessEvent(vtkObject*,void*,ulong,void*)));
+
+       }
+     if ( eventId == vtkMRMLMarkupsNode::MarkupAddedEvent) 
+       {
+       this->PrintText("markup processing" ); 
+       this->ReadMousePosition=false;
+       }
      // Compute RAS
-     vtkInteractorObserver * interactorStyle = vtkInteractorObserver::SafeDownCast(sender);
-     Q_ASSERT(d->ObservedInteractorStyles.indexOf(interactorStyle) != -1);
-     //vtkRenderWindowInteractor * interactor = interactorStyle->GetInteractor();
-     int xy[2] = {-1, -1};
-     interactorStyle->GetInteractor()->GetEventPosition(xy);
-     
-//      vtkMRMLSliceNode * sliceNode = vtkMRMLSliceNode::SafeDownCast(currentScene->GetNthNodeByClass(sNode,"vtkMRMLSliceNode"));
-//      qMRMLSliceWidget * sliceWidget = layoutManager->sliceWidget(sliceNode->GetLayoutName());
-
-     //qMRMLSliceWidget * sliceWidget = d->SlicerWidget(interactorStyle);     
-     // be good to change this to a while.
-     qMRMLSliceWidget * sliceWidget = NULL;
-     foreach(const QString& sliceViewName, qSlicerApplication::application()->layoutManager()->sliceViewNames())
+     if ( this->ReadMousePosition) 
        {
-       sliceWidget = qSlicerApplication::application()->layoutManager()->sliceWidget(sliceViewName);
-       //     Q_ASSERT(sliceWidget);
-       if ( !( sliceWidget->sliceView()->interactorStyle() == interactorStyle ))
+       //vtkInteractorObserver * interactorStyle = vtkInteractorObserver::SafeDownCast(sender);
+       Q_ASSERT(d->ObservedInteractorStyles.indexOf(interactorStyle) != -1);
+       
+       int xy[2] = {-1, -1};
+       interactorStyle->GetInteractor()->GetEventPosition(xy); 
+       
+       qMRMLSliceWidget * sliceWidget = NULL;
+       foreach(const QString& sliceViewName, qSlicerApplication::application()->layoutManager()->sliceViewNames())
          {
-         sliceWidget = NULL; 
-         }
-       else 
+         sliceWidget = qSlicerApplication::application()->layoutManager()->sliceWidget(sliceViewName);
+         if ( !( sliceWidget->sliceView()->interactorStyle() == interactorStyle ))
+           {
+           sliceWidget = NULL; 
+           }
+         else 
+           {
+           //this->PrintText(sliceViewName);
+           break;
+           }
+         }     
+       if ( ! sliceWidget) 
          {
-         //this->PrintText(sliceViewName);
-         break;
-         }
-       }     
-     if ( ! sliceWidget) 
-       {
-       this->PrintText("sliceWidget Fail! Found no slice widgets.");
-       }
-//     Q_ASSERT(sliceWidget);
-//      QList<double> xyz = sliceWidget->convertDeviceToXYZ(QList<int>() << xy[0] << xy[1]);
-//      QList<double> ras = sliceWidget->convertXYZToRAS(xyz);
-//      const qMRMLSliceView * sView = sliceWidget->sliceView();
-//      QList<double> xyz = sView->convertDeviceToXYZ(QList<int>() << xy[0] << xy[1]);
-//      QList<double> ras = sView->convertXYZToRAS(xyz);
-      //cNode = vtkMRMLCrosshairNode::SafeDownCast(currentScene->GetNextNodeByClass("vtkMRMLCrosshairNode"));
-     
-//      QString displayableManager = QString("vtkMRMLCrosshairDisplayableManager");
-//      vtkMRMLSliceViewDisplayableManagerFactory* factory
-//        = vtkMRMLSliceViewDisplayableManagerFactory::GetInstance();
-//      factory->RegisterDisplayableManager(displayableManager.toLatin1());
-     this->mrmlScene()->InitTraversal();
-     vtkMRMLCrosshairDisplayableManager *cmgr = 
-       vtkMRMLCrosshairDisplayableManager::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairDisplayableManager"));
-     this->mrmlScene()->InitTraversal();
-      vtkMRMLCrosshairNode * cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
-//     vtkMRMLCrosshairNode * cNode  = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNodeByID("vtkMRMLCrosshairNodeDefault"));
-
-//      vtkMRMLCrosshairNode * cNode = NULL; 
-//      int numberCrosshairNodes = 0; 
-//      numberCrosshairNodes = this->mrmlScene()->GetNumberOfNodesByClass("vtkMRMLCrosshairNode");
-//      if (numberCrosshairNodes == 0 ) 
-//        {
-//        this->PrintText("No crosshair nodes found");
-//        d->WatchMousePositionCheckBox->setChecked(false);
-//        return;
-//        } 
-//      else
-//        {
-//        this->mrmlScene()->InitTraversal();
-//        cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
-//        QTextStream test(stdout);
-//        test << "Number of crosshair nodes :" << numberCrosshairNodes << "\n";
-//        }
-     
-
-//sliceWidget->sliceView()->DisplayableManagerGroup->GetDisplayableManagerByClassName(
-//  "vtkMRMLCrosshairDisplayableManager")
-     double xyz[3] = { 0,0,0 };
-     double ras[3] = { 0,0,0 };
-     if ( cmgr ) 
-       {
-       cmgr->ConvertDeviceToXYZ(xy[0], xy[1], xyz);
-       cmgr->ConvertXYZToRAS(xyz,ras);
-       }
-     else 
-       {
-
-       if ( cNode ) 
-         {
-         // cNode->ConvertDeviceToXYZ(xy[0], xy[1], xyz);
-         // cNode->ConvertXYZToRAS(xyz,ras);
-         double  * RAS = cNode->GetCrosshairRAS();
-         ras[0] = RAS[0];
-         ras[1] = RAS[1];
-         ras[2] = RAS[2];
-         }
-       else 
-         {
-         this->PrintText("Did not find crosshair manager ");
-         this->PrintText("Did not find crosshair.");
+         this->PrintText("sliceWidget Fail! Found no slice widgets.");
          return;
          }
-       }
-     if ( ras[0]+ras[1]+ras[2] == 0) 
-       {
-       this->PrintText("RAS not set, crosshair failed to start.");
-//        d->WatchMousePositionCheckBox->setChecked(false);
-//        this->SetMouseWatcherStatus();
-//        return;
-       }
-     // this test code works.
-//      QTextStream test(stdout);
-//      test << "RAS co-ords :" << ras[0] << ":"<<ras[1]<<":"<<ras[2]<< "\n";     
-
-     if ( ! sliceWidget )
-       {
-       this->PrintText("sliceWidget not set, return.");
-       return;       
-       }
-     vtkMRMLSliceLogic * sliceLogic = sliceWidget->sliceLogic();
-     vtkMRMLSliceNode * sliceNode = sliceWidget->mrmlSliceNode();
-     if ( ! sliceLogic || ! sliceNode ) 
-       {
-       this->PrintText("sliceLogic or sliceNode not set");
-       return;
-       }
-     else 
-       {
-       vtkMatrix4x4 *rasToXYZ = vtkMatrix4x4::New();
-       rasToXYZ->DeepCopy(sliceNode->GetXYToRAS());
-       rasToXYZ->Invert();
-       double rasw[4], xyzw[4];
-       rasw[0] = ras[0];
-       rasw[1] = ras[1];
-       rasw[2] = ras[2];
-       rasw[3] = 1.0;
-       rasToXYZ->MultiplyPoint(rasw, xyzw);
-       xyz[0] = xyzw[0]/xyzw[3];
-       xyz[1] = xyzw[1]/xyzw[3];
-       xyz[2] = xyzw[2]/xyzw[3];
-       rasToXYZ->Delete();
-       }
-//      test << "XYZ co-ords : "<< xyz[0] << ":" <<xyz[1] << ":" <<xyz[2]  <<"\n";
-
-/*
-//      QList<double> xyz = vtkMRMLAbstractSliceViewDisplayableManager::ConvertDeviceToXYZ(interactor, sliceNode, xy[0], xy[1], xyz);
-//      QList<double> ras = vtkMRMLAbstractSliceViewDisplayableManager::ConvertXYZToRAS(sliceNode, xyz, ras);
-     
-//      // RAS
-//      d->ViewerRAS->setText(QString("RAS: (%1, %2, %3)").
-//                            arg(ras[0], / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1).
-//                            arg(ras[1], / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1).
-//                            arg(ras[2], / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1));
-*/
-/*      // Orientation
-     d->ViewerOrient->setText(QString("  %1").arg(sliceWidget->sliceOrientation()));
-     
-     // Spacing
-     QString spacing = QString("%1").arg(
-       sliceLogic->GetLowestVolumeSliceSpacing()[2],
-       / * fieldWidth= * / 0, / * format = * / 'f', / * precision= * / 1);
-     if (sliceNode->GetSliceSpacingMode() == vtkMRMLSliceNode::PrescribedSliceSpacingMode)
-       {
-       spacing = "(" + spacing + ")";
-       }
-     d->ViewerSpacing->setText(QString("Sp: %1").arg(spacing));
-   
-     // Color
-     double layoutColor[3] = {0.0, 0.0, 0.0};
-     sliceNode->GetLayoutColor(layoutColor);
-     d->ViewerColor->setStyleSheet(
-       QString("QLabel {background-color : %1}").arg(
-         QColor::fromRgbF(layoutColor[0], layoutColor[1], layoutColor[2]).name()));
-
-     // Name
-     d->ViewerName->setText(QString("  %1  ").arg(sliceNode->GetLayoutName()));
-*/   
-     
-     // Layer name, ijk and value
-     typedef QPair<QString, vtkMRMLSliceLayerLogic*> LayerIdAndLogicType;
-
-     foreach(LayerIdAndLogicType layerIdAndLogic,
-             (QList<LayerIdAndLogicType>()
-              << LayerIdAndLogicType("L", sliceLogic->GetLabelLayer())
+       this->mrmlScene()->InitTraversal();
+       vtkMRMLCrosshairDisplayableManager *cmgr = 
+         vtkMRMLCrosshairDisplayableManager::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairDisplayableManager"));
+       this->mrmlScene()->InitTraversal();
+       vtkMRMLCrosshairNode * cNode = vtkMRMLCrosshairNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLCrosshairNode"));
+       double xyz[3] = { 0,0,0 };
+       double ras[3] = { 0,0,0 };
+       if ( cmgr ) 
+         {
+         cmgr->ConvertDeviceToXYZ(xy[0], xy[1], xyz);
+         cmgr->ConvertXYZToRAS(xyz,ras);
+         }
+       else 
+         {
+         //this->PrintText("no cmgr");
+         if ( cNode ) 
+           {
+           double  * RAS = cNode->GetCrosshairRAS();
+           ras[0] = RAS[0];
+           ras[1] = RAS[1];
+           ras[2] = RAS[2];
+           }
+         else 
+           {
+           this->PrintText("Did not find crosshair manager ");
+           this->PrintText("Did not find crosshair.");
+           return;
+           }
+         }
+       if ( ras[0]+ras[1]+ras[2] == 0) 
+         {
+         this->PrintText("RAS not set, crosshair failed to start.");
+         }
+       if ( ! sliceWidget )
+         {
+         this->PrintText("sliceWidget not set, return.");
+         return;       
+         }
+       vtkMRMLSliceLogic * sliceLogic = sliceWidget->sliceLogic();
+       vtkMRMLSliceNode * sliceNode = sliceWidget->mrmlSliceNode();
+       if ( ! sliceLogic || ! sliceNode ) 
+         {
+         this->PrintText("sliceLogic or sliceNode not set");
+         return;
+         }
+       else 
+         {
+         vtkMatrix4x4 *rasToXYZ = vtkMatrix4x4::New();
+         rasToXYZ->DeepCopy(sliceNode->GetXYToRAS());
+         rasToXYZ->Invert();
+         double rasw[4], xyzw[4];
+         rasw[0] = ras[0];
+         rasw[1] = ras[1];
+         rasw[2] = ras[2];
+         rasw[3] = 1.0;
+         rasToXYZ->MultiplyPoint(rasw, xyzw);
+         xyz[0] = xyzw[0]/xyzw[3];
+         xyz[1] = xyzw[1]/xyzw[3];
+         xyz[2] = xyzw[2]/xyzw[3];
+         rasToXYZ->Delete();
+         }
+       // Layer name, ijk and value
+       std::string labelName;
+       typedef QPair<QString, vtkMRMLSliceLayerLogic*> LayerIdAndLogicType;
+       foreach(LayerIdAndLogicType layerIdAndLogic,
+               (QList<LayerIdAndLogicType>()
+                << LayerIdAndLogicType("L", sliceLogic->GetLabelLayer())
 //               << LayerIdAndLogicType("B", sliceLogic->GetBackgroundLayer())
 //               << LayerIdAndLogicType("F", sliceLogic->GetForegroundLayer())
-             ) )
-       {
-
-       QString sliceLayerId = layerIdAndLogic.first;
-       vtkMRMLSliceLayerLogic * sliceLayerLogic = layerIdAndLogic.second;
-       if (! sliceLayerLogic) 
+               ) )
          {
-         this->PrintText("Failed to get slicelayer logic");
-         return;
-         }
-       vtkMRMLVolumeNode * volumeNode = sliceLayerLogic->GetVolumeNode();
-       QString layerName = "None";
-//        QString ijkAsString;
-       QString valueAsString;
-       if (volumeNode)
-         {
-//          this->PrintText("Have volume node, reading values");
-//          return;
-         layerName = volumeNode->GetName();
-         // QList<double> ijk = d->convertXYZToIJK(sliceLayerLogic, xyz);q
-
-         vtkMatrix4x4 * xyToIJK = sliceLayerLogic->GetXYToIJKTransform()->GetMatrix();
-         double xyzw[4] = {xyz[0], xyz[1], xyz[2], 1.0};
-         double ijkw[4] = {0.0, 0.0, 0.0, 0.0};
-         xyToIJK->MultiplyPoint(xyzw, ijkw);
-         //Q_ASSERT(ijkw[3] == 1.0);
-         QList<double> ijk ;
-         ijk << ijkw[0] <<  ijkw[1] <<  ijkw[2];
-
+         
+         QString sliceLayerId = layerIdAndLogic.first;
+         vtkMRMLSliceLayerLogic * sliceLayerLogic = layerIdAndLogic.second;
+         if (! sliceLayerLogic) 
+           {
+           this->PrintText("Failed to get slicelayer logic");
+           return;
+           }
+         vtkMRMLVolumeNode * volumeNode = sliceLayerLogic->GetVolumeNode();
+         this->CurrentLabelVolume = volumeNode;
+         QString layerName = "None";
+         // QString ijkAsString;
+         QString valueAsString;
+         if (volumeNode)
+           {
+           layerName = volumeNode->GetName();
+           
+           vtkMatrix4x4 * xyToIJK = sliceLayerLogic->GetXYToIJKTransform()->GetMatrix();
+           double xyzw[4] = {xyz[0], xyz[1], xyz[2], 1.0};
+           double ijkw[4] = {0.0, 0.0, 0.0, 0.0};
+           xyToIJK->MultiplyPoint(xyzw, ijkw);
+           //Q_ASSERT(ijkw[3] == 1.0);
+           QList<double> ijk ;
+           ijk << ijkw[0] <<  ijkw[1] <<  ijkw[2];
+//            double * i_j_k;
+//            i_j_k[0]=ijk[0];
+//            i_j_k[1]=ijk[1];
+//           i_j_k[2]=ijk[2];
+//           this->cLastIJK=i_j_k;
+          
 //          ijkAsString = QString("(%1, %2, %3)").arg(qRound(ijk[0])).arg(qRound(ijk[1])).arg(qRound(ijk[2]));
          
-         // from vtkSlicerDataProbeLogic::ProbePixel
-         vtkMRMLScalarVolumeNode * scalarVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(volumeNode);
-         vtkImageData * imageData = scalarVolumeNode->GetImageData();
-         double labelIndex = imageData->GetScalarComponentAsDouble(ijkw[0],ijkw[1],ijkw[2],0); //ijkw[3]);
-         vtkMRMLColorNode * colorNode = scalarVolumeNode->GetDisplayNode()->GetColorNode();
-         std::string labelName = colorNode->GetColorName(static_cast<int>(labelIndex));
-         QString valueAsString;
-         QStringList valueAsStrings;
-
-
-         valueAsString = QString::fromStdString(labelName);
-         valueAsStrings << valueAsString;
-         valueAsStrings << " ("+QString::number(labelIndex)+")";
-
-        
-         valueAsString = valueAsStrings.join(", ");
-         //QString lIdx = QString("%1").arg(labelIndex, /* fieldWidth= */ 0, /* format = */ 'g', /* precision= */ 4);
-         
-         d->StructureName->setText(valueAsString);
-         /*
-         if(d->DataProbeLogic)
-           {
-           int probeStatus = d->DataProbeLogic->ProbePixel(volumeNode, ijk[0], ijk[1], ijk[2]);
-           if (probeStatus & vtkSlicerDataProbeLogic::PROBE_SUCCESS)
+           // from vtkSlicerDataProbeLogic::ProbePixel
+           vtkMRMLScalarVolumeNode * scalarVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(volumeNode);
+           vtkImageData * imageData = scalarVolumeNode->GetImageData();
+           double labelIndex = imageData->GetScalarComponentAsDouble(ijkw[0],ijkw[1],ijkw[2],0); //ijkw[3]);
+           vtkMRMLColorNode * colorNode = scalarVolumeNode->GetDisplayNode()->GetColorNode();
+           labelName = colorNode->GetColorName(static_cast<int>(labelIndex));
+           this->LastLabelName=labelName;
+           this->PrintText(QString("LastLabelName is "+QString::fromStdString(labelName)));
+            
+           QString valueAsString;
+           QStringList valueAsStrings;
+           
+           valueAsString = QString::fromStdString(labelName);
+           valueAsStrings << valueAsString;
+           valueAsStrings << " ("+QString::number(labelIndex)+")";
+           
+           valueAsString = valueAsStrings.join(", ");
+           //QString lIdx = QString("%1").arg(labelIndex, /* fieldWidth= */ 0, /* format = */ 'g', /* precision= */ 4);
+           
+           d->StructureName->setText(valueAsString);
+           /*
+             if(d->DataProbeLogic)
+             {
+             int probeStatus = d->DataProbeLogic->ProbePixel(volumeNode, ijk[0], ijk[1], ijk[2]);
+             if (probeStatus & vtkSlicerDataProbeLogic::PROBE_SUCCESS)
              {
              if (d->DataProbeLogic->GetPixelNumberOfComponents() > 3)
-               {
-               valueAsString = QString("%1 components").arg(d->DataProbeLogic->GetPixelNumberOfComponents());
-               }
+             {
+             valueAsString = QString("%1 components").arg(d->DataProbeLogic->GetPixelNumberOfComponents());
+             }
              else
-               {
-               QStringList valueAsStrings;
-               for(int pixelValueIdx = 0; pixelValueIdx < d->DataProbeLogic->GetNumberOfPixelValues(); ++pixelValueIdx)
-                 {
-                 valueAsStrings << QString("%1").
-                   arg(d->DataProbeLogic->GetPixelValue(pixelValueIdx), / * fieldWidth= * / 0, / * format = * / 'g', / * precision= * / 4);
-                 }
-               valueAsString = valueAsStrings.join(", ");
-               }
+             {
+             QStringList valueAsStrings;
+             for(int pixelValueIdx = 0; pixelValueIdx < d->DataProbeLogic->GetNumberOfPixelValues(); ++pixelValueIdx)
+             {
+             valueAsStrings << QString("%1").
+             arg(d->DataProbeLogic->GetPixelValue(pixelValueIdx), / * fieldWidth= * / 0, / * format = * / 'g', / * precision= * / 4);
+             }
+             valueAsString = valueAsStrings.join(", ");
+             }
              QString pixelDescription = QString::fromStdString(d->DataProbeLogic->GetPixelDescription());
              if (!pixelDescription.isEmpty())
-               {
-               pixelDescription.append(" ");
-               if (probeStatus == vtkSlicerDataProbeLogic::PROBE_SUCCESS_LABEL_VOLUME ||
-                   probeStatus == vtkSlicerDataProbeLogic::PROBE_SUCCESS_LABEL_VOLUME_UNKNOWN_LABELNAME)
-                 {
-                 valueAsString = QString("(%1)").arg(valueAsString);
-                 }
-               valueAsString.prepend(pixelDescription);
-               }
+             {
+             pixelDescription.append(" ");
+             if (probeStatus == vtkSlicerDataProbeLogic::PROBE_SUCCESS_LABEL_VOLUME ||
+             probeStatus == vtkSlicerDataProbeLogic::PROBE_SUCCESS_LABEL_VOLUME_UNKNOWN_LABELNAME)
+             {
+             valueAsString = QString("(%1)").arg(valueAsString);
              }
-           else
+             valueAsString.prepend(pixelDescription);
+             }
+             }
+             else
              {
              valueAsString = QString::fromStdString(d->DataProbeLogic->GetPixelProbeStatusAsString());
              }
-           }*/
-
-         } // end if volumenode valid statement
-       else
-         {
-         this->PrintText("Could not get volulmenode");
+             }*/
+           } // end if volumenode valid statement
+         else
+           {
+           this->PrintText("Could not get volulmenode");
+           }
          }
+       }
+       if ( FiducialPlacement && eventId == vtkMRMLMarkupsNode::MarkupAddedEvent) //LeftButtonReleaseEvent
+         {
+         this->PrintText("Added fiducial, now setting text labels");
+         this->mrmlScene()->InitTraversal();
+         vtkMRMLMarkupsFiducialNode * fiducialListNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(
+           this->mrmlScene()->GetNextNodeByClass("vtkMRMLMarkupsFiducialNode"));
+         int numberMarkupsNodes = this->mrmlScene()->GetNumberOfNodesByClass("vtkMRMLMarkupsFiducialNode");
+         if (numberMarkupsNodes == 0 ) 
+           {
+           this->PrintText("No markups nodes found");
+           } 
+         else
+           {
+           if ( ! fiducialListNode) 
+             {
+             test << " failed to get fiduciallist.\n";
+             return;
+             }
+//              this->mrmlScene()->InitTraversal();
+//              cNode = vtkMRMLMarkupsNode::SafeDownCast(this->mrmlScene()->GetNextNodeByClass("vtkMRMLMarkupsNode"));
+           
+//           test << "Number of markups nodes :" << numberMarkupsNodes << "\n";
+           
+           //int nFiducials=0;
+           //nFiducials = fiducialListNode->GetNumberOfFiducials();//slicer crash, i think due to race condition between left click event and make fiducial
+           this->NumberOfFiducials = fiducialListNode->GetNumberOfFiducials();//slicer crash, i think due to race condition between left click event and make fiducial
+//           nFiducials = fiducialListNode->GetNumberOfMarkups(); //slicer crash
+//           vtkMRMLMarkupsDisplayNode * disp = fiducialListNode->GetMarkupsDisplayNode();
+           test << "Label setting "<< QString::fromStdString(this->LastLabelName) <<"\n"; 
+           test << "nFiducials" << NumberOfFiducials<<"\n";
+           if ( this->NumberOfFiducials>=1 ) 
+             {
+             fiducialListNode->SetNthFiducialLabel(this->NumberOfFiducials-1,this->LastLabelName); // fail no symbol
+             }
+           }
+         
+         for ( int fN=0;fN<0;fN++) //this->NumberOfFiducials;fN++ )
+           {
+//              test<< "fiducial "<<fN<<"\n";
+//              vtkMRMLAnnotationFiducialNode * fNode =vtkMRMLAnnotationFiducialNode::SafeDownCast(this->mrmlScene()->GetNthNodeByClass(fN,"vtkMRMLAnnotationFiducialNode"));
+//              std::string labelName = "test";      
+//              fidNode->SetNthFiducialLabel(fN,labelName);
+//              fNode->SetNthMarkupLabel(fN,labelName);
+//              fNode->SetFiducialLabel("Test");
 
-//        d->RowsOfLayerLabels[sliceLayerId].at(0)->setText(QString("<b>%1</b>").arg(layerName));
+//       double xyz[4];
+//       fidNode->GetNthFiducialPosition(fN,xyz);
+// //       fidNode->;GetMarkupPointWorld(fN,0,xyz);
+//        vtkMRMLSliceLayerLogic * sliceLayerLogic = vtkMRMLSliceLayerLogic::SafeDownCast(this->CurrentSliceLayerLogic);
+//        vtkMatrix4x4 * xyToIJK = sliceLayerLogic->GetXYToIJKTransform()->GetMatrix();
+//        double xyzw[4] = {xyz[0], xyz[1], xyz[2], 1.0};
+//        double ijkw[4] = {0.0, 0.0, 0.0, 0.0};
+//        xyToIJK->MultiplyPoint(xyzw, ijkw);
+//        //Q_ASSERT(ijkw[3] == 1.0);
+//        QList<double> ijk ;
+//        ijk << ijkw[0] <<  ijkw[1] <<  ijkw[2];
+//        vtkMRMLScalarVolumeNode * scalarVolumeNode = vtkMRMLScalarVolumeNode::SafeDownCast(this->CurrentLabelVolume);
+//        vtkImageData * imageData = scalarVolumeNode->GetImageData();
+//        double labelIndex = imageData->GetScalarComponentAsDouble(ijkw[0],ijkw[1],ijkw[2],0); //ijkw[3]);
+//        vtkMRMLColorNode * colorNode = scalarVolumeNode->GetDisplayNode()->GetColorNode();
+//        std::String labelName = colorNode->GetColorName(static_cast<int>(labelIndex));
+           
+           fiducialListNode->SetNthFiducialLabel(fN,this->LastLabelName); // fail no symbol
+           //labelName=fiducialListNode->GetNthFiducialLabel(fN);// fail no symbol
+           
+           }
+         
+       //        d->RowsOfLayerLabels[sliceLayerId].at(0)->setText(QString("<b>%1</b>").arg(layerName));
 //        d->RowsOfLayerLabels[sliceLayerId].at(1)->setText(ijkAsString);
 //        d->RowsOfLayerLabels[sliceLayerId].at(2)->setText(QString("<b>%1</b>").arg(valueAsString));
 
-       } // end foreach layer loop
-     } // end if event match statement
+         }// end foreach layer loop
+     
+     }// end if event match statement
    else if(eventId == vtkCommand::LeaveEvent)
      {
-     
+     this->FiducialPlacement=false;
+     this->ReadMousePosition=false;
+     this->mrmlScene()->InitTraversal();
+     vtkMRMLMarkupsFiducialNode * markupsNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(
+       this->mrmlScene()->GetNextNodeByClass("vtkMRMLMarkupsFiducialNode"));
+     this->qvtkConnect(markupsNode, vtkMRMLMarkupsNode::MarkupAddedEvent,
+                       this, SLOT(ProcessEvent(vtkObject*,void*,ulong,void*)));
      }
    else
      {
@@ -2053,6 +2096,44 @@ std::vector<double> qSlicerCIVM_AdultRatPGRModuleWidget::GetSliderRangeSlice(vtk
   return range;
 }
 
+//-----------------------------------------------------------------------------
+void qSlicerCIVM_AdultRatPGRModuleWidget::onDeleteAllMarkupsInListPushButtonClicked()
+{
+  Q_D(qSlicerCIVM_AdultRatPGRModuleWidget);
+  // get the active node
+  this->mrmlScene()->InitTraversal();
+  vtkMRMLMarkupsFiducialNode * mrmlNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(
+    this->mrmlScene()->GetNextNodeByClass("vtkMRMLMarkupsFiducialNode"));
+//  vtkMRMLNode *mrmlNode = d->activeMarkupMRMLNodeComboBox->currentNode();
+  vtkMRMLMarkupsNode *listNode = NULL;
+  if (mrmlNode)
+    {
+    listNode = vtkMRMLMarkupsNode::SafeDownCast(mrmlNode);
+    }
+  if (listNode)
+    {
+    // qDebug() << "Removing markups from list " << listNode->GetName();
+    ctkMessageBox deleteAllMsgBox;
+    deleteAllMsgBox.setWindowTitle("Delete All Markups in this list?");
+    QString labelText = QString("Delete all ")
+      + QString::number(listNode->GetNumberOfMarkups())
+      + QString(" Markups in this list?");
+    // don't show again check box conflicts with informative text, so use
+    // a long text
+    deleteAllMsgBox.setText(labelText);
+    deleteAllMsgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    deleteAllMsgBox.setDefaultButton(QMessageBox::Yes);
+    deleteAllMsgBox.setDontShowAgainVisible(true);
+    deleteAllMsgBox.setDontShowAgainSettingsKey("Markups/AlwaysDeleteAllMarkups");
+    int ret = deleteAllMsgBox.exec();
+    if (ret == QMessageBox::Yes)
+      {
+      listNode->RemoveAllMarkups();
+      }
+    }
+}
+
+
 /*
 void qSlicerCIVM_AdultRatPGRModuleWidget::IncrimentSlider(ctkSliderWidget * )
 {
@@ -2096,8 +2177,7 @@ bool qSlicerCIVM_AdultRatPGRModuleWidget::NodeExists(QString nodeName)
   return false;
 }
 
-
-
+//---------------------------------------------------------------------------
 QStringList qSlicerCIVM_AdultRatPGRModuleWidget::SetLayout()  //QString layout
 {
   vtkMRMLScene* currentScene = this->mrmlScene();
@@ -2113,7 +2193,7 @@ QStringList qSlicerCIVM_AdultRatPGRModuleWidget::SetLayout()  //QString layout
     //Two over Two
     sceneNodes << "Red"
     << "Yellow"
-    << "Slice1"
+    << "Slice4"
     << "Green";
     //vtkMRMLLayoutNode::SlicerLayoutTwoOverTwoView
     this->PrintText("\tLayout should have 2 volumes");

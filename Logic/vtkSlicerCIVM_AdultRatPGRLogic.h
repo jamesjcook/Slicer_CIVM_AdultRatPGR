@@ -55,6 +55,7 @@ protected:
   virtual void UpdateFromMRMLScene();
   virtual void OnMRMLSceneNodeAdded(vtkMRMLNode* node);
   virtual void OnMRMLSceneNodeRemoved(vtkMRMLNode* node);
+  //  virtual void OnMRMLSceneEdited(vtkMRMLNode* node);
 private:
 
   vtkSlicerCIVM_AdultRatPGRLogic(const vtkSlicerCIVM_AdultRatPGRLogic&); // Not implemented

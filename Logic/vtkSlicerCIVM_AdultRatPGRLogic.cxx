@@ -22,7 +22,7 @@
 
 // VTK includes
 #include <vtkNew.h>
-
+#include <vtkMRMLMarkupsFiducialNode.h>
 // STD includes
 #include <cassert>
 
@@ -52,6 +52,7 @@ void vtkSlicerCIVM_AdultRatPGRLogic::SetMRMLSceneInternal(vtkMRMLScene * newScen
   events->InsertNextValue(vtkMRMLScene::NodeAddedEvent);
   events->InsertNextValue(vtkMRMLScene::NodeRemovedEvent);
   events->InsertNextValue(vtkMRMLScene::EndBatchProcessEvent);
+  //  events->InsertNextValue(vtkMRMLScene::SceneEditedEvent);
   this->SetAndObserveMRMLSceneEventsInternal(newScene, events.GetPointer());
 }
 
@@ -65,13 +66,38 @@ void vtkSlicerCIVM_AdultRatPGRLogic::RegisterNodes()
 void vtkSlicerCIVM_AdultRatPGRLogic::UpdateFromMRMLScene()
 {
   assert(this->GetMRMLScene() != 0);
+  //  vtkErrorMacro("Logic:UpdateFromMRMLScene");
 }
 
 //---------------------------------------------------------------------------
-void vtkSlicerCIVM_AdultRatPGRLogic
-::OnMRMLSceneNodeAdded(vtkMRMLNode* vtkNotUsed(node))
+void vtkSlicerCIVM_AdultRatPGRLogic::OnMRMLSceneNodeAdded(vtkMRMLNode* vtkNotUsed(node))
 {
+
+//   int nFiducials=0;
+//   vtkErrorMacro("Logic:gotnodeadded");
+//   this->GetMRMLScene()->InitTraversal();
+//   vtkMRMLMarkupsFiducialNode * fiducialListNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(this->GetMRMLScene()->GetNextNodeByClass("vtkMRMLMarkupsFiducialNode"));
+//   //Superclass::NumberOfFiducials = fiducialListNode->GetNumberOfFiducials();
+//   if ( fiducialListNode) 
+//     {
+//     nFiducials=fiducialListNode->GetNumberOfFiducials();
+//     }
+  //cout << "fiducials after node addition " << nFiducials;// pretty sure this causes a crash
 }
+// //---------------------------------------------------------------------------
+// void vtkSlicerCIVM_AdultRatPGRLogic::OnMRMLSceneEdited(vtkMRMLNode* vtkNotUsed(node))
+// {
+//   int nFiducials=0;
+//   vtkErrorMacro("Logic:SceneEdited");
+//   this->GetMRMLScene()->InitTraversal();
+//   vtkMRMLMarkupsFiducialNode * fiducialListNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(this->GetMRMLScene()->GetNextNodeByClass("vtkMRMLMarkupsFiducialNode"));
+//   //Superclass::NumberOfFiducials = fiducialListNode->GetNumberOfFiducials();
+//   if ( fiducialListNode) 
+//     {
+//     nFiducials=fiducialListNode->GetNumberOfFiducials();
+//     }
+//   //cout << "fiducials after node addition " << nFiducials;
+// }
 
 //---------------------------------------------------------------------------
 void vtkSlicerCIVM_AdultRatPGRLogic
