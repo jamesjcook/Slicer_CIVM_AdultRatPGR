@@ -50,6 +50,7 @@ public:
   void PrintText(QString);    //print to console
   QStringList SetLayout();    //defunct?(that needs verification) function to change the layout.
   const char * NodeID(QString); //translates node name to node id
+  QString ps;                 //place to hold the path separator so our module can be multi-platform.
   
   //public data
   QString GalleryName;        // Name of the gallery
