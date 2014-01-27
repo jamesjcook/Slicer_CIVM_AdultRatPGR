@@ -20,9 +20,17 @@
 
 // MRML includes
 
+// MRML includes for nightly
+#include <vtkMRMLScene.h>
+
 // VTK includes
 #include <vtkNew.h>
 #include <vtkMRMLMarkupsFiducialNode.h>
+
+// vtk includes for nightly.
+#include <vtkIntArray.h>
+#include <vtkObjectFactory.h>
+
 // STD includes
 #include <cassert>
 
